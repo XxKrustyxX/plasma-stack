@@ -4,8 +4,10 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
+import org.kde.iconthemes as KIconThemes
 
 KCM.SimpleKCM {
+    id: page
     property alias cfg_folder: folderField.text
     property alias cfg_sortMode: sortBox.currentIndex
     property alias cfg_viewMode: viewBox.currentIndex
@@ -13,6 +15,10 @@ KCM.SimpleKCM {
     property alias cfg_maxItems: maxSpin.value
     property alias cfg_bounceOnDownload: bounceBox.checked
     property alias cfg_showPreviews: previewsBox.checked
+    property alias cfg_markNew: newBox.checked
+    property string cfg_icon
+    // Kept by the widget itself, not shown here
+    property string cfg_lastSeen
 
     // Plasma also hands every settings page each option's default value; we don't use them
     property var cfg_folderDefault
@@ -22,6 +28,9 @@ KCM.SimpleKCM {
     property var cfg_maxItemsDefault
     property var cfg_showPreviewsDefault
     property var cfg_bounceOnDownloadDefault
+    property var cfg_markNewDefault
+    property var cfg_iconDefault
+    property var cfg_lastSeenDefault
 
     Kirigami.FormLayout {
         RowLayout {
@@ -35,6 +44,48 @@ KCM.SimpleKCM {
                 icon.name: "document-open-folder"
                 text: i18n("Choose…")
                 onClicked: picker.open()
+            }
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: i18n("Icon:")
+
+            QQC2.Button {
+                id: iconButton
+                Layout.preferredWidth: Kirigami.Units.iconSizes.large + Kirigami.Units.smallSpacing * 4
+                Layout.preferredHeight: Layout.preferredWidth
+                checkable: true
+                checked: iconMenu.visible
+                onClicked: iconMenu.popup(iconButton, 0, iconButton.height)
+
+                Kirigami.Icon {
+                    anchors.centerIn: parent
+                    width: Kirigami.Units.iconSizes.large
+                    height: width
+                    source: page.cfg_icon || page.automaticIcon
+                }
+            }
+
+            QQC2.Label {
+                visible: page.cfg_icon === ""
+                opacity: 0.7
+                text: i18n("Automatic, from the folder")
+            }
+
+            QQC2.Menu {
+                id: iconMenu
+
+                QQC2.MenuItem {
+                    text: i18n("Choose…")
+                    icon.name: "document-open-folder"
+                    onClicked: iconDialog.open()
+                }
+                QQC2.MenuItem {
+                    text: i18n("Automatic")
+                    icon.name: "edit-undo"
+                    enabled: page.cfg_icon !== ""
+                    onClicked: page.cfg_icon = ""
+                }
             }
         }
 
@@ -78,9 +129,38 @@ KCM.SimpleKCM {
         }
 
         QQC2.CheckBox {
+            id: newBox
+            Kirigami.FormData.label: i18n("New files:")
+            text: i18n("Mark files added since you last looked")
+        }
+
+        QQC2.CheckBox {
             id: bounceBox
             Kirigami.FormData.label: i18n("Downloads:")
             text: i18n("Bounce when a download finishes")
+        }
+    }
+
+    // The icon picker KDE uses for its own panel buttons (it can also take a picture file)
+    KIconThemes.IconDialog {
+        id: iconDialog
+        onIconNameChanged: iconName => {
+            if (iconName)
+                page.cfg_icon = iconName;
+        }
+    }
+
+    // Same choice the widget makes when no icon is set
+    readonly property string automaticIcon: {
+        const name = folderField.text.replace(/\/$/, "").split("/").pop();
+        switch (folderField.text === "" ? "Downloads" : name) {
+        case "Downloads": return "folder-download";
+        case "Documents": return "folder-documents";
+        case "Pictures": return "folder-pictures";
+        case "Music": return "folder-music";
+        case "Videos": return "folder-videos";
+        case "Desktop": return "user-desktop";
+        default: return "folder";
         }
     }
 

@@ -50,6 +50,7 @@ PlasmoidItem {
     property real progress: 0      // 0 = tucked into the dock, 1 = fully fanned out
     property double lastClosed: 0
     property bool dragging: false  // a file is being dragged out; keep the popup alive until it's dropped
+    property bool menuOpen: false  // the right-click menu takes the focus; keep the popup alive while it's up
 
     // The dock icon is shown as-is; the fan is our own popup, not a standard expanded view
     preferredRepresentation: fullRepresentation
@@ -198,6 +199,43 @@ PlasmoidItem {
     property var activeDownloads: []   // real names of downloads in progress in the stack's folder
     property var downloadSizes: ({})   // path of a download in progress -> bytes so far
 
+    // ---- New files: a dot on anything added since the stack was last closed, and a count on the dock icon
+    property var newPaths: []
+
+    function checkNew() {
+        if (!Plasmoid.configuration.markNew) {
+            newPaths = [];
+            return;
+        }
+        const since = Number(Plasmoid.configuration.lastSeen);
+        if (!since) {
+            // First run: start counting from now rather than calling everything new
+            Plasmoid.configuration.lastSeen = String(Math.floor(Date.now() / 1000));
+            return;
+        }
+        runner.connectSource(`bash ${shellQuote(scriptPath("new-files.sh"))} ${shellQuote(folderPath())} ${since} # new ${Date.now()}`);
+    }
+
+    function newFound(stdout) {
+        const dir = folderPath().replace(/\/$/, "");
+        newPaths = stdout.split("\n").filter(name => name !== "" && !name.startsWith(".")
+                                              && partialEndings.indexOf(lastSuffix(name)) < 0
+                                              && activeDownloads.indexOf(name) < 0)   // still downloading
+            .map(name => dir + "/" + name);
+    }
+
+    function folderPath() {
+        return decodeURIComponent(folderUrl.toString().replace(/^file:\/\//, ""));
+    }
+
+    Connections {
+        target: Plasmoid.configuration
+        function onMarkNewChanged() { root.checkNew() }
+        // A different folder starts with nothing new (only a real change of the setting:
+        // folderUrl itself also "changes" while Plasma starts up)
+        function onFolderChanged() { Plasmoid.configuration.lastSeen = String(Math.floor(Date.now() / 1000)) }
+    }
+
     function folderChanged() {
         const now = downloadsIn(folderModel);
         const names = [];
@@ -206,6 +244,7 @@ PlasmoidItem {
         // Gone from the in-progress list and the finished file is there = a download just finished
         const finished = activeDownloads.some(n => now.indexOf(n) < 0 && names.indexOf(n) >= 0);
         activeDownloads = now;
+        checkNew();
         if (finished && Plasmoid.configuration.bounceOnDownload)
             downloadFinished();
         // Keep an open stack up to date (a download finishing turns into a normal file)
@@ -302,6 +341,13 @@ PlasmoidItem {
         onCountChanged: if (status === FolderListModel.Ready && root.browsing) root.subEntries = root.readFolder(browseModel)
     }
 
+    // Renames keep the count the same, so catch those too
+    Connections {
+        target: browseModel
+        function onDataChanged() { if (root.browsing) root.subEntries = root.readFolder(browseModel) }
+        function onModelReset() { if (root.browsing && browseModel.status === FolderListModel.Ready) root.subEntries = root.readFolder(browseModel) }
+    }
+
     function closeFan() {
         openAnim.stop();
         if (fan)
@@ -320,9 +366,9 @@ PlasmoidItem {
         return decodeURIComponent(Qt.resolvedUrl("../code/" + name).toString().replace(/^file:\/\//, ""));
     }
 
-    function receive(urls, mode) {
+    // dest: the folder (a path) the files go into
+    function receive(urls, mode, dest) {
         const script = scriptPath("drop.sh");
-        const dest = decodeURIComponent(folderUrl.toString().replace(/^file:\/\//, ""));
         const args = Array.from(urls, u => shellQuote(u.toString())).join(" ");
         // The timestamp keeps two identical drops from looking like the same command to the runner
         runner.connectSource(`bash ${shellQuote(script)} ${mode} ${shellQuote(dest)} ${args} # ${Date.now()}`);
@@ -341,38 +387,184 @@ PlasmoidItem {
     }
 
     // Like dropping onto a folder in Dolphin: Shift moves, Ctrl copies, otherwise ask
-    function handleDrop(urls, modifiers) {
-        const inFolder = folderUrl.toString().replace(/\/$/, "") + "/";
-        // Files dragged out of this stack and straight back in are already where they belong
+    // dest: the folder (a path) they go into. menuAt: where to ask Move or Copy, { item, x, y } inside
+    // the open stack; without it the menu opens by the dock icon.
+    function handleDrop(urls, modifiers, dest, menuAt) {
+        const inFolder = "file://" + dest.replace(/\/$/, "") + "/";
+        // Files dragged out of this folder and straight back in are already where they belong,
+        // and a folder can't go inside itself
         const incoming = Array.from(urls, u => u.toString())
-            .filter(u => !(u.startsWith(inFolder) && u.slice(inFolder.length).indexOf("/") < 0));
+            .filter(u => !(u.startsWith(inFolder) && u.slice(inFolder.length).indexOf("/") < 0))
+            .filter(u => u.replace(/\/$/, "") !== "file://" + dest.replace(/\/$/, ""));
         if (incoming.length === 0)
-            return;
+            return false;
         if (modifiers & Qt.ShiftModifier) {
-            receive(incoming, "move");
+            receive(incoming, "move", dest);
         } else if (modifiers & Qt.ControlModifier) {
-            receive(incoming, "copy");
+            receive(incoming, "copy", dest);
         } else {
             droppedUrls = incoming;
+            dropDest = dest;
             moveItem.enabled = incoming.every(u => u.startsWith("file:"));   // web links can only be downloaded
             // Opened after the drop has finished, so the drag doesn't swallow the menu
-            Qt.callLater(() => dropMenu.openRelative());
+            Qt.callLater(() => {
+                if (menuAt && popupOpen) {
+                    menuOpen = true;   // keep the stack up behind it
+                    dropMenu.visualParent = menuAt.item;
+                    dropMenu.transientParent = fan;
+                    dropMenu.open(menuAt.x, menuAt.y);
+                } else {
+                    dropMenu.visualParent = dockIcon;
+                    dropMenu.transientParent = null;
+                    dropMenu.openRelative();
+                }
+            });
+            return true;
         }
+        return false;
+    }
+    property string dropDest: ""
+
+    // ---- Drag files onto the dock icon and hold: the stack opens, folders in it open when held over,
+    // and the files can be dropped into any of them (macOS calls this spring-loading)
+    property bool springLoaded: false     // opened by holding a drag over the dock icon
+    property bool dragOverDock: false
+    property bool dragOverPopup: false
+    property var dropHover: null          // what a drag over the open stack is pointing at (see dropTargetAt)
+
+    Timer {
+        id: springOpen
+        interval: 700
+        onTriggered: {
+            if (root.dragOverDock && !root.popupOpen) {
+                root.openFan();
+                root.springLoaded = true;
+            }
+        }
+    }
+
+    // Opens the folder held over (or goes back to the folder behind)
+    Timer {
+        id: springFolder
+        interval: 800
+        onTriggered: {
+            const t = root.dropHover;
+            if (!t || !root.popupOpen)
+                return;
+            if (t.level !== undefined)
+                root.backTo(t.level);
+            else if (root.showGrid || root.stackedFolders)
+                root.enterFolder(t.entry);
+            root.dropHover = null;
+        }
+    }
+
+    // A drag that wanders off both the dock icon and the stack closes the stack it opened
+    Timer {
+        id: springClose
+        interval: 600
+        onTriggered: {
+            if (root.springLoaded && !root.dragOverDock && !root.dragOverPopup && !root.menuOpen)
+                root.closeFan();
+        }
+    }
+
+    function dragPlaceChanged() {
+        if (!dragOverDock && !dragOverPopup)
+            springClose.restart();
+        else
+            springClose.stop();
+    }
+    onDragOverDockChanged: dragPlaceChanged()
+    onDragOverPopupChanged: dragPlaceChanged()
+
+    // What's under a point in the open stack: a folder ({ entry }), a folder behind the open one
+    // ({ level }), or null for the folder on show. Delegates say what they are with a dropTarget property.
+    function dropTargetAt(item, x, y) {
+        // Front to back: the fans and boxes overlap, and each covers the whole popup
+        const kids = Array.from(item.children).map((c, i) => ({ c: c, i: i }))
+            .sort((a, b) => (b.c.z - a.c.z) || (b.i - a.i));
+        for (const { c } of kids) {
+            if (!c.visible)
+                continue;
+            const p = item.mapToItem(c, x, y);
+            if (!c.contains(p))
+                continue;
+            if (c.dropTarget !== undefined) {
+                if (c.dropTarget !== null)
+                    return c.dropTarget;
+                continue;   // something that isn't a folder: look behind it
+            }
+            const found = dropTargetAt(c, p.x, p.y);
+            if (found)
+                return found;
+            // The grid box hides the stacked folders behind it
+            if (c.dropOpaque === true)
+                return null;
+        }
+        return null;
+    }
+
+    function sameTarget(a, b) {
+        if (!a || !b)
+            return a === b;
+        return a.level === b.level && (a.entry ? a.entry.path : "") === (b.entry ? b.entry.path : "");
+    }
+
+    function dragMovedOver(body, x, y) {
+        const t = dropTargetAt(body, x, y);
+        if (sameTarget(t, dropHover))
+            return;
+        dropHover = t;
+        // Folders spring open in the grid, or in the fan when folders stack on top
+        if (t && (t.level !== undefined || showGrid || stackedFolders))
+            springFolder.restart();
+        else
+            springFolder.stop();
+    }
+
+    function folderPathOf(level) {
+        const url = level > 0 && browsePath[level - 1] ? browsePath[level - 1].url : folderUrl;
+        return decodeURIComponent(url.toString().replace(/^file:\/\//, ""));
+    }
+
+    function droppedOnStack(body, event) {
+        const t = dropTargetAt(body, event.x, event.y);
+        springFolder.stop();
+        dropHover = null;
+        dragOverPopup = false;
+        const dest = t && t.entry ? t.entry.path
+            : t && t.level !== undefined ? folderPathOf(t.level)
+            : decodeURIComponent(gridFolderUrl.toString().replace(/^file:\/\//, ""));
+        const asking = handleDrop(event.mimeData.urls, event.modifiers, dest, { item: body, x: event.x, y: event.y });
+        // Done with the stack, unless the Move / Copy menu still needs it
+        if (!asking && springLoaded)
+            closeFan();
     }
 
     PlasmaExtras.Menu {
         id: dropMenu
 
+        onStatusChanged: {
+            if (status === PlasmaExtras.Menu.Closed && root.menuOpen)
+                Qt.callLater(() => {
+                    root.menuOpen = false;
+                    // Dropped into the stack: it's done its job
+                    if (root.popupOpen)
+                        root.closeFan();
+                });
+        }
+
         PlasmaExtras.MenuItem {
             id: moveItem
             text: i18n("&Move Here")
             icon: "go-jump"
-            onClicked: root.receive(root.droppedUrls, "move")
+            onClicked: root.receive(root.droppedUrls, "move", root.dropDest)
         }
         PlasmaExtras.MenuItem {
             text: i18n("&Copy Here")
             icon: "edit-copy"
-            onClicked: root.receive(root.droppedUrls, "copy")
+            onClicked: root.receive(root.droppedUrls, "copy", root.dropDest)
         }
         PlasmaExtras.MenuItem {
             separator: true
@@ -381,6 +573,308 @@ PlasmoidItem {
             text: i18n("C&ancel")
             icon: "process-stop"
         }
+    }
+
+    // ---- Selecting several files: Ctrl-click adds or removes one, Shift-click takes everything in between,
+    // Ctrl+A takes them all. Dragging or right-clicking a selected file then works on the whole selection.
+    property var selection: []        // paths of the selected files, in the folder on show
+    property string selectionAnchor: ""   // where a Shift-click range starts
+
+    // The files that can be picked right now: the open grid, or the front fan
+    function selectableList() {
+        return (showGrid ? shownEntries : gridEntries.slice(0, maxItems)).filter(e => !e.downloading);
+    }
+
+    // ---- Type to filter: typing while the stack is open shows only the files whose names contain the text
+    property string filterText: ""
+    readonly property var shownEntries: {
+        const words = filterText.trim().toLowerCase();
+        return words === "" ? gridEntries : gridEntries.filter(e => e.name.toLowerCase().indexOf(words) >= 0);
+    }
+    // Each folder starts unfiltered
+    onGridFolderUrlChanged: filterText = ""
+
+    function clearSelection() {
+        selection = [];
+        selectionAnchor = "";
+    }
+
+    // Handles Ctrl/Shift clicks; returns false for a plain click, which then opens the file as usual
+    function selectClick(entry, modifiers) {
+        if (entry === null || entry.downloading || !(modifiers & (Qt.ControlModifier | Qt.ShiftModifier)))
+            return false;
+        const list = selectableList().map(e => e.path);
+        if (modifiers & Qt.ShiftModifier) {
+            const from = list.indexOf(selectionAnchor) >= 0 ? list.indexOf(selectionAnchor) : list.indexOf(entry.path);
+            const to = list.indexOf(entry.path);
+            const range = list.slice(Math.min(from, to), Math.max(from, to) + 1);
+            // Ctrl+Shift adds the range to what's already picked
+            selection = (modifiers & Qt.ControlModifier) ? selection.concat(range.filter(p => selection.indexOf(p) < 0)) : range;
+            if (selectionAnchor === "")
+                selectionAnchor = entry.path;
+        } else {
+            selection = selection.indexOf(entry.path) >= 0 ? selection.filter(p => p !== entry.path) : selection.concat([entry.path]);
+            selectionAnchor = entry.path;
+        }
+        return true;
+    }
+
+    function selectAll() {
+        selection = selectableList().map(e => e.path);
+    }
+
+    // What dragging or right-clicking this file acts on: the whole selection if it's part of it, else just it
+    function targetsFor(entry) {
+        if (selection.length > 1 && selection.indexOf(entry.path) >= 0)
+            return selectableList().filter(e => selection.indexOf(e.path) >= 0);
+        return [entry];
+    }
+
+    // Files that go (binned, renamed, another folder opened) drop out of the selection
+    onGridEntriesChanged: selection = selection.filter(p => gridEntries.some(e => e.path === p))
+
+    // ---- Right-click menu on a file or folder in the stack (see contents/code/file-actions.sh)
+    property var menuEntry: null       // the file right-clicked
+    property var menuEntries: []       // everything the menu acts on (the selection, or just that file)
+    readonly property bool menuMany: menuEntries.length > 1
+    property bool menuInGrid: false
+    property var openWithApps: []   // [{ id, name, icon }], the default app first
+    property string appsJob: ""
+
+    function quotedUrls(entries) {
+        return entries.map(e => shellQuote(e.url)).join(" ");
+    }
+
+    function showFileMenu(entry, item, x, y, inGrid) {
+        if (entry === null || entry.downloading)
+            return;
+        menuEntries = targetsFor(entry);
+        // Right-clicking something outside the selection drops it, like Dolphin
+        if (menuEntries.length === 1 && selection.length > 0 && selection.indexOf(entry.path) < 0)
+            clearSelection();
+        menuEntry = entry;
+        menuInGrid = inGrid;
+        fileMenu.visualParent = item;
+        fileMenu.openAt = Qt.point(x, y);
+        appsJob = `${Date.now()}`;
+        // Files and folders together have no app in common
+        if (menuMany && menuEntries.some(e => e.isDir)) {
+            openWithApps = [];
+            openFileMenu();
+            return;
+        }
+        // Ask which apps open it, then show the menu (looking them up takes a few milliseconds)
+        runner.connectSource(`python3 -I ${shellQuote(scriptPath("apps.py"))} ${shellQuote(entry.path)} # apps ${appsJob}`);
+        appsTimeout.restart();
+    }
+
+    function appsFound(job, stdout) {
+        if (job !== appsJob)
+            return;
+        openWithApps = stdout.split("\n").filter(l => l.indexOf("\t") > 0).map(l => {
+            const [id, name, icon] = l.split("\t");
+            return { id: id, name: name, icon: icon };
+        });
+        openFileMenu();
+    }
+
+    // If the look-up is slow, show the menu without its apps rather than not at all
+    Timer {
+        id: appsTimeout
+        interval: 400
+        onTriggered: {
+            root.openWithApps = [];
+            root.openFileMenu();
+        }
+    }
+
+    function openFileMenu() {
+        appsTimeout.stop();
+        if (appsJob === "" || !popupOpen)
+            return;
+        appsJob = "";
+        menuOpen = true;
+        // Belongs to the stack's own window, so it opens on top of it and in the right place
+        fileMenu.transientParent = fan;
+        fileMenu.open(fileMenu.openAt.x, fileMenu.openAt.y);
+    }
+
+    function fileAction(args) {
+        runner.connectSource(`bash ${shellQuote(scriptPath("file-actions.sh"))} ${args} # action ${Date.now()}`);
+    }
+
+    // What a left click does with a folder: open it in the stack, or in the file manager
+    function openEntry(entry, inGrid) {
+        if (entry.isDir && (inGrid || stackedFolders))
+            enterFolder(entry);
+        else
+            openUrl(entry.url);
+    }
+
+    // ---- Renaming, right in the fan or grid like Dolphin
+    property string renamingPath: ""   // file being renamed; empty = none
+    property string renameText: ""
+    property string renameError: ""
+    property string renameJob: ""
+
+    function startRename(entry) {
+        renameError = "";
+        renameText = entry.name;
+        renamingPath = entry.path;
+    }
+
+    function cancelRename() {
+        renamingPath = "";
+        renameError = "";
+    }
+
+    function finishRename() {
+        if (renamingPath === "")
+            return;
+        const oldName = renamingPath.slice(renamingPath.lastIndexOf("/") + 1);
+        const newName = renameText.trim();
+        if (newName === "" || newName === oldName) {
+            cancelRename();
+        } else if (newName.indexOf("/") >= 0) {
+            renameError = i18n("A name can't contain “/”");
+        } else if (newName === "." || newName === "..") {
+            renameError = i18n("That name isn't allowed");
+        } else {
+            renameJob = `${Date.now()}`;
+            runner.connectSource(`bash ${shellQuote(scriptPath("file-actions.sh"))} rename ${shellQuote(renamingPath)} ${shellQuote(newName)} # rename ${renameJob}`);
+        }
+    }
+
+    function renameDone(job, stdout, exitCode) {
+        if (job !== renameJob)
+            return;
+        if (stdout.trim() === "exists")
+            renameError = i18n("Something called “%1” is already here", renameText.trim());
+        else if (exitCode !== 0)
+            renameError = i18n("Couldn't rename it");
+        else
+            cancelRename();
+    }
+
+    // Starts each time the stack opens with nothing being renamed, selected or filtered
+    onPopupOpenChanged: {
+        if (!popupOpen) {
+            cancelRename();
+            clearSelection();
+            filterText = "";
+            springLoaded = false;
+            dragOverPopup = false;
+            dropHover = null;
+            // Everything has been seen now
+            Plasmoid.configuration.lastSeen = String(Math.floor(Date.now() / 1000));
+            newPaths = [];
+        }
+    }
+
+    PlasmaExtras.Menu {
+        id: fileMenu
+        property point openAt
+        readonly property bool isDir: root.menuEntry !== null && root.menuEntry.isDir
+
+        onStatusChanged: {
+            if (status === PlasmaExtras.Menu.Closed)
+                Qt.callLater(() => {
+                    root.menuOpen = false;
+                    // Give the stack its keyboard back (for renaming, Esc, ...)
+                    if (root.popupOpen)
+                        root.fan.requestActivate();
+                });
+        }
+
+        PlasmaExtras.MenuItem {
+            section: true
+            visible: root.menuMany
+            text: i18np("%1 item", "%1 items", root.menuEntries.length)
+        }
+        PlasmaExtras.MenuItem {
+            text: root.menuMany ? i18n("&Open All") : i18n("&Open")
+            icon: fileMenu.isDir && !root.menuMany ? "folder-open" : "document-open"
+            onClicked: {
+                if (root.menuMany) {
+                    // Several folders can't all open in the stack, so they go to the file manager
+                    root.menuEntries.forEach(e => Qt.openUrlExternally(e.url));
+                    root.closeFan();
+                } else {
+                    root.openEntry(root.menuEntry, root.menuInGrid);
+                }
+            }
+        }
+        PlasmaExtras.MenuItem {
+            visible: fileMenu.isDir && !root.menuMany
+            text: i18n("Open in %1", root.fileManagerLabel)
+            icon: "system-file-manager"
+            onClicked: root.openUrl(root.menuEntry.url)
+        }
+        PlasmaExtras.MenuItem {
+            id: openWithSection
+            section: true
+            text: i18n("Open With")
+            visible: root.openWithApps.length > 0
+        }
+        // (the apps go here, see the Instantiator below)
+        PlasmaExtras.MenuItem {
+            id: otherAppItem
+            // KDE's chooser only takes one file at a time
+            visible: !root.menuMany
+            text: i18n("Other Application…")
+            icon: "application-x-executable"
+            onClicked: {
+                root.fileAction(`choose ${root.shellQuote(root.menuEntry.url)}`);
+                root.closeFan();
+            }
+        }
+        PlasmaExtras.MenuItem {
+            separator: true
+        }
+        PlasmaExtras.MenuItem {
+            text: i18n("Show in %1", root.fileManagerLabel)
+            icon: "document-open-folder"
+            onClicked: {
+                root.fileAction(`show ${root.quotedUrls(root.menuEntries)}`);
+                root.closeFan();
+            }
+        }
+        PlasmaExtras.MenuItem {
+            visible: !root.menuMany
+            text: i18n("&Rename…")
+            icon: "edit-rename"
+            onClicked: root.startRename(root.menuEntry)
+        }
+        PlasmaExtras.MenuItem {
+            text: root.menuMany ? i18n("&Copy Locations") : i18n("&Copy Location")
+            icon: "edit-copy-path"
+            onClicked: root.fileAction(`copy ${root.shellQuote(root.menuEntries.map(e => e.path).join("\n"))}`)
+        }
+        PlasmaExtras.MenuItem {
+            separator: true
+        }
+        PlasmaExtras.MenuItem {
+            text: i18n("Move to &Bin")
+            icon: "user-trash"
+            onClicked: {
+                root.fileAction(`trash ${root.quotedUrls(root.menuEntries)}`);
+                root.clearSelection();
+            }
+        }
+    }
+
+    Instantiator {
+        model: root.openWithApps
+        delegate: PlasmaExtras.MenuItem {
+            text: modelData.name
+            icon: modelData.icon || "application-x-executable"
+            onClicked: {
+                root.fileAction(`launch ${root.shellQuote(modelData.id)} ${root.quotedUrls(root.menuEntries)}`);
+                root.closeFan();
+            }
+        }
+        onObjectAdded: (index, object) => fileMenu.addMenuItem(object, otherAppItem)
+        onObjectRemoved: (index, object) => fileMenu.removeMenuItem(object)
     }
 
     // Name of the default file manager for the "Open in …" buttons (Dolphin, COSMIC Files, …).
@@ -398,7 +892,13 @@ PlasmoidItem {
         id: runner
         engine: "executable"
         onNewData: (source, data) => {
-            if (source.indexOf("# file-manager ") >= 0) {
+            if (source.indexOf("# new ") >= 0) {
+                root.newFound(data.stdout);
+            } else if (source.indexOf("# apps ") >= 0) {
+                root.appsFound(source.slice(source.indexOf("# apps ") + 7), data.stdout);
+            } else if (source.indexOf("# rename ") >= 0) {
+                root.renameDone(source.slice(source.indexOf("# rename ") + 9), data.stdout, data["exit code"]);
+            } else if (source.indexOf("# file-manager ") >= 0) {
                 root.fileManagerName = data.stdout.trim();
             } else if (source.indexOf("# thumbs ") >= 0) {
                 root.thumbsDone(source.slice(source.indexOf("# thumbs ") + 9), data.stdout);
@@ -459,6 +959,20 @@ PlasmoidItem {
             opacity: fileIcon.entry !== null && fileIcon.entry.downloading ? 0.45 : 1
         }
 
+        // New since the stack was last looked at
+        Rectangle {
+            visible: fileIcon.entry !== null && root.newPaths.indexOf(fileIcon.entry.path) >= 0
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.margins: -width * 0.15
+            width: Math.round(parent.width * 0.26)
+            height: width
+            radius: width / 2
+            color: Kirigami.Theme.highlightColor
+            border.color: "white"
+            border.width: Math.max(1, width * 0.12)
+        }
+
         Rectangle {
             visible: fileIcon.entry !== null && fileIcon.entry.downloading
             anchors.right: parent.right
@@ -485,6 +999,44 @@ PlasmoidItem {
         }
     }
 
+    // Box for typing a file's new name, shown in place of its label while it's being renamed.
+    // Enter or clicking elsewhere renames it, Esc gives up.
+    component RenameField: QQC2.TextField {
+        id: field
+        property bool active: false
+        property bool hadFocus: false
+        visible: active
+        horizontalAlignment: TextInput.AlignHCenter
+        font.pointSize: Kirigami.Theme.smallFont.pointSize
+        onTextChanged: if (active) root.renameText = text
+        onActiveChanged: {
+            if (!active)
+                return;
+            hadFocus = false;
+            text = root.renameText;
+            // Like Dolphin: the name is picked out without its ending, so typing keeps ".pdf"
+            const dot = text.lastIndexOf(".");
+            const isDir = root.renamingPath !== "" && root.gridEntries.concat(root.allEntries)
+                .some(e => e.path === root.renamingPath && e.isDir);
+            select(0, dot > 0 && !isDir ? dot : text.length);
+            forceActiveFocus();
+        }
+        onActiveFocusChanged: {
+            if (activeFocus)
+                hadFocus = true;
+            else if (active && hadFocus)
+                root.finishRename();
+        }
+        Keys.onReturnPressed: root.finishRename()
+        Keys.onEnterPressed: root.finishRename()
+        Keys.onEscapePressed: event => {
+            root.cancelRename();
+            event.accepted = true;   // don't close the stack as well
+        }
+        QQC2.ToolTip.visible: active && root.renameError !== ""
+        QQC2.ToolTip.text: root.renameError
+    }
+
     // Lets a file be dragged out to the file manager, the desktop or any app that takes files.
     // Put one inside a MouseArea and point the MouseArea's drag.target at it.
     component FileDrag: Item {
@@ -496,11 +1048,16 @@ PlasmoidItem {
         Drag.active: active && entry !== null && !entry.downloading
         Drag.dragType: Drag.Automatic
         Drag.supportedActions: Qt.CopyAction | Qt.MoveAction | Qt.LinkAction
-        Drag.mimeData: entry ? { "text/uri-list": entry.url.toString() } : {}
+        // The whole selection if this file is part of it
+        Drag.mimeData: entry ? { "text/uri-list": root.targetsFor(entry).map(e => e.url.toString()).join("\r\n") } : {}
         Drag.onDragStarted: root.dragging = true
         Drag.onDragFinished: {
             root.dragging = false;
-            root.closeFan();
+            // (unless it was dropped on a folder in the stack and the Move / Copy menu is up)
+            Qt.callLater(() => {
+                if (!root.menuOpen)
+                    root.closeFan();
+            });
         }
 
         // Picture under the cursor while dragging
@@ -542,7 +1099,7 @@ PlasmoidItem {
 
         Kirigami.Icon {
             anchors.fill: parent
-            source: root.folderIcon()
+            source: Plasmoid.configuration.icon || root.folderIcon()
             active: compact.containsMouse || dropZone.hovering
             // Swells a little while files are held over it, like the macOS dock
             scale: dropZone.hovering ? 1.15 : 1
@@ -595,6 +1152,28 @@ PlasmoidItem {
             }
         }
 
+        // How many new files, in the corner like the counts on the dock's app icons
+        Rectangle {
+            readonly property int count: root.newPaths.length
+            visible: count > 0 && !root.popupOpen
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: Math.round(parent.height * 0.42)
+            width: Math.max(height, countText.implicitWidth + height * 0.5)
+            radius: height / 2
+            color: Kirigami.Theme.highlightColor
+            border.color: Qt.rgba(1, 1, 1, 0.8)
+
+            Text {
+                id: countText
+                anchors.centerIn: parent
+                color: "white"
+                font.bold: true
+                font.pixelSize: parent.height * 0.62
+                text: parent.count > 99 ? "99+" : parent.count
+            }
+        }
+
         // Folder name on hover, the same style of tooltip as the app icons on the dock
         PlasmaCore.ToolTipArea {
             id: folderTip
@@ -614,16 +1193,28 @@ PlasmoidItem {
             onDragEnter: event => {
                 hovering = event.mimeData.hasUrls;
                 root.closePanelGap();
+                root.dragOverDock = hovering;
+                // Held here for a moment: open the stack so the files can go into a folder inside it
+                if (hovering && !root.popupOpen)
+                    springOpen.restart();
             }
-            onDragLeave: hovering = false
+            onDragLeave: {
+                hovering = false;
+                root.dragOverDock = false;
+                springOpen.stop();
+            }
             onDrop: event => {
                 hovering = false;
+                root.dragOverDock = false;
+                springOpen.stop();
                 root.closePanelGap();
                 if (!event.mimeData.hasUrls) {
                     event.ignore();
                     return;
                 }
-                root.handleDrop(event.mimeData.urls, event.modifiers);
+                root.handleDrop(event.mimeData.urls, event.modifiers, root.folderPath());
+                if (root.springLoaded)
+                    root.closeFan();
                 // Report a copy whatever we do, so the app the files came from never deletes its own copy
                 event.accept(Qt.CopyAction);
             }
@@ -644,7 +1235,7 @@ PlasmoidItem {
             type: PlasmaCore.Dialog.PopupMenu
             backgroundHints: PlasmaCore.Dialog.NoBackground
             flags: Qt.WindowStaysOnTopHint
-            hideOnWindowDeactivate: !root.dragging
+            hideOnWindowDeactivate: !root.dragging && !root.menuOpen && !root.springLoaded
             onVisibleChanged: {
                 if (!visible) {
                     root.lastClosed = Date.now();
@@ -654,14 +1245,52 @@ PlasmoidItem {
             }
 
             mainItem: Item {
+                id: popupBody
                 width: root.showGrid ? gridBox.width : canvas.width
                 height: root.showGrid ? gridBox.height + gridStack.depth * gridStack.step : canvas.height
                 focus: true
-                Keys.onEscapePressed: root.closeFan()
+                // Esc drops the selection first, then closes the stack
+                Keys.onEscapePressed: root.selection.length > 0 ? root.clearSelection() : root.closeFan()
                 Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Backspace && root.browsing) {
+                    // Typing a letter starts filtering; the fan shows only a few files, so it turns into the grid
+                    const typed = event.text.length === 1 && event.text >= " " && event.text !== "\x7f"
+                        && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier));
+                    if (typed && root.renamingPath === "") {
+                        root.showGrid = true;
+                        searchField.text = event.text;
+                        searchField.forceActiveFocus();
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Backspace && root.browsing) {
                         root.goBack();
                         event.accepted = true;
+                    } else if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+                        root.selectAll();
+                        event.accepted = true;
+                    }
+                }
+
+                // Files dragged over the open stack: held over a folder it opens, dropped they go in
+                // (whatever folder is under the pointer, else the one on show)
+                DragDrop.DropArea {
+                    anchors.fill: parent
+                    onDragEnter: event => {
+                        root.dragOverPopup = event.mimeData.hasUrls;
+                        root.dragMovedOver(popupBody, event.x, event.y);
+                    }
+                    onDragMove: event => root.dragMovedOver(popupBody, event.x, event.y)
+                    onDragLeave: {
+                        root.dragOverPopup = false;
+                        root.dropHover = null;
+                        springFolder.stop();
+                    }
+                    onDrop: event => {
+                        if (!event.mimeData.hasUrls) {
+                            event.ignore();
+                            return;
+                        }
+                        root.droppedOnStack(popupBody, event);
+                        // A copy as far as the other app knows, so it never deletes its own files
+                        event.accept(Qt.CopyAction);
                     }
                 }
 
@@ -713,6 +1342,13 @@ PlasmoidItem {
                                     readonly property real angle: (index + 0.5) * root.rowHeight / root.radius * root.progress * fanLayer.grow
                                     readonly property real cx: canvas.width / 2 + root.radius * (1 - Math.cos(angle))
                                     readonly property real cy: canvas.height - root.radius * Math.sin(angle) - root.rowHeight / 2
+                                    readonly property bool renaming: entry !== null && fanLayer.current && root.renamingPath === entry.path
+                                    readonly property bool selected: entry !== null && fanLayer.current && root.selection.indexOf(entry.path) >= 0
+                                    // For files dragged over the stack: an earlier fan means its folder, a folder means itself
+                                    readonly property var dropTarget: !fanLayer.current ? { level: fanLayer.level }
+                                        : entry !== null && entry.isDir && !entry.downloading ? { entry: entry } : null
+                                    readonly property bool dropHere: entry !== null && root.dropHover !== null && root.dropHover.entry !== undefined
+                                        && root.dropHover.entry.path === entry.path
 
                                     width: root.labelWidth + Kirigami.Units.smallSpacing + root.iconSize
                                     height: root.rowHeight
@@ -734,19 +1370,32 @@ PlasmoidItem {
                                         height: parent.height
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        drag.target: fanLayer.current && !row.isMore ? rowDrag : null
-                                        onPressed: if (fanLayer.current && !row.isMore) rowDrag.prepare(icon)
-                                        onClicked: {
-                                            if (!fanLayer.current)
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        drag.target: fanLayer.current && !row.isMore && !(pressedButtons & Qt.RightButton) ? rowDrag : null
+                                        onPressed: mouse => {
+                                            if (fanLayer.current && !row.isMore && mouse.button === Qt.LeftButton)
+                                                rowDrag.prepare(icon);
+                                        }
+                                        onClicked: mouse => {
+                                            if (root.renamingPath !== "") {
+                                                // A click anywhere else finishes the rename first, like Dolphin
+                                                if (!row.renaming)
+                                                    root.finishRename();
+                                            } else if (mouse.button === Qt.RightButton) {
+                                                if (fanLayer.current && !row.isMore)
+                                                    root.showFileMenu(row.entry, hit, mouse.x, mouse.y, false);
+                                            } else if (fanLayer.current && root.selectClick(row.entry, mouse.modifiers)) {
+                                                return;   // Ctrl/Shift-click picked it
+                                            } else if (!fanLayer.current)
                                                 root.backTo(fanLayer.level);
                                             else if (row.isMore)
                                                 root.openUrl(fanLayer.folder);
                                             else if (row.entry.downloading)
                                                 return;   // nothing to open until it's finished
-                                            else if (row.entry.isDir && root.stackedFolders)
-                                                root.enterFolder(row.entry);
-                                            else
-                                                root.openUrl(row.entry.url);
+                                            else {
+                                                root.clearSelection();
+                                                root.openEntry(row.entry, false);
+                                            }
                                         }
 
                                         FileDrag {
@@ -762,13 +1411,20 @@ PlasmoidItem {
                                         anchors.right: icon.left
                                         anchors.rightMargin: Kirigami.Units.smallSpacing
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: Math.min(root.labelWidth, text.implicitWidth + Kirigami.Units.largeSpacing * 2)
-                                        height: text.implicitHeight + Kirigami.Units.smallSpacing * 2
+                                        width: row.renaming ? root.labelWidth : Math.min(root.labelWidth, text.implicitWidth + Kirigami.Units.largeSpacing * 2)
+                                        height: row.renaming ? fanRename.implicitHeight : text.implicitHeight + Kirigami.Units.smallSpacing * 2
                                         radius: height / 2
-                                        color: hit.containsMouse ? Kirigami.Theme.highlightColor : Qt.rgba(0.1, 0.1, 0.1, 0.78)
+                                        color: hit.containsMouse || row.selected || row.dropHere ? Kirigami.Theme.highlightColor : Qt.rgba(0.1, 0.1, 0.1, 0.78)
+
+                                        RenameField {
+                                            id: fanRename
+                                            anchors.fill: parent
+                                            active: row.renaming
+                                        }
 
                                         Text {
                                             id: text
+                                            visible: !row.renaming
                                             anchors.centerIn: parent
                                             width: parent.width - Kirigami.Units.largeSpacing * 2
                                             horizontalAlignment: Text.AlignHCenter
@@ -781,6 +1437,16 @@ PlasmoidItem {
                                                     ? i18n("%1 · downloading %2", row.entry.name, root.sizeText(row.entry))
                                                     : row.entry.name
                                         }
+                                    }
+
+                                    // Selected: a highlight behind the icon as well as the label
+                                    Rectangle {
+                                        visible: row.selected
+                                        anchors.centerIn: icon
+                                        width: root.iconSize + Kirigami.Units.smallSpacing * 2
+                                        height: width
+                                        radius: Kirigami.Units.cornerRadius * 2
+                                        color: Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.45)
                                     }
 
                                     FileIcon {
@@ -810,6 +1476,8 @@ PlasmoidItem {
                     delegate: Rectangle {
                         // index 0 = the stack's own folder
                         readonly property int behind: gridStack.depth - index   // how many folders sit in front of it
+                        readonly property var dropTarget: ({ level: index })
+                        readonly property bool dropHere: root.dropHover !== null && root.dropHover.level === index
                         Kirigami.Theme.colorSet: Kirigami.Theme.Window
                         Kirigami.Theme.inherit: false
                         z: 0
@@ -832,7 +1500,7 @@ PlasmoidItem {
                             horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideRight
                             level: 4
-                            opacity: strip.containsMouse ? 1 : 0.65
+                            opacity: strip.containsMouse || parent.dropHere ? 1 : 0.65
                             text: index > 0 && root.browsePath[index - 1] ? root.browsePath[index - 1].name : root.folderName
                         }
 
@@ -849,6 +1517,7 @@ PlasmoidItem {
                 // Grid: every file in a rounded box, scrolling when there are lots
                 Rectangle {
                     id: gridBox
+                    readonly property bool dropOpaque: true
                     visible: root.showGrid
                     z: 1    // above the stacked folders behind it
                     y: gridStack.depth * gridStack.step
@@ -896,8 +1565,43 @@ PlasmoidItem {
                             onClicked: root.goBack()
                         }
 
+                        // While filtering, the box for the text sits where the folder name was
+                        Kirigami.SearchField {
+                            id: searchField
+                            anchors.centerIn: parent
+                            width: title.width
+                            visible: root.filterText !== ""
+                            placeholderText: i18n("Filter")
+                            autoAccept: false
+                            onTextChanged: root.filterText = text
+                            // Emptied (by Backspace or its clear button): back to the folder name, keys back to the stack
+                            onVisibleChanged: if (!visible) popupBody.forceActiveFocus()
+                            Keys.onEscapePressed: event => {
+                                text = "";
+                                event.accepted = true;   // don't close the stack as well
+                            }
+                            // Enter opens the first match. (Not onAccepted: the field also sends that
+                            // after a pause in typing and when its clear button is clicked.)
+                            function openFirst() {
+                                const first = root.shownEntries.find(e => !e.downloading);
+                                if (first && text.trim() !== "")
+                                    root.openEntry(first, true);
+                            }
+                            Keys.onReturnPressed: openFirst()
+                            Keys.onEnterPressed: openFirst()
+
+                            Connections {
+                                target: root
+                                function onFilterTextChanged() {
+                                    if (searchField.text !== root.filterText)
+                                        searchField.text = root.filterText;
+                                }
+                            }
+                        }
+
                         Kirigami.Heading {
                             id: title
+                            visible: !searchField.visible
                             anchors.centerIn: parent
                             width: parent.width - (backButton.visible ? backButton.width * 2 + Kirigami.Units.smallSpacing * 2 : 0)
                             horizontalAlignment: Text.AlignHCenter
@@ -918,22 +1622,41 @@ PlasmoidItem {
                         cellHeight: gridBox.cellHeight
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
-                        model: gridBox.visible ? root.gridEntries : []
+                        model: gridBox.visible ? root.shownEntries : []
                         QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
 
                         delegate: MouseArea {
                             id: cell
                             width: gridBox.cellWidth
                             height: gridBox.cellHeight
+                            readonly property bool renaming: root.renamingPath === modelData.path
+                            readonly property bool selected: root.selection.indexOf(modelData.path) >= 0
+                            // Folders take files dragged over the stack
+                            readonly property var dropTarget: modelData.isDir && !modelData.downloading ? { entry: modelData } : null
+                            readonly property bool dropHere: root.dropHover !== null && root.dropHover.entry !== undefined
+                                && root.dropHover.entry.path === modelData.path
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            drag.target: cellDrag
-                            onPressed: cellDrag.prepare(cellIcon)
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            drag.target: pressedButtons & Qt.RightButton ? null : cellDrag
+                            onPressed: mouse => {
+                                if (mouse.button === Qt.LeftButton)
+                                    cellDrag.prepare(cellIcon);
+                            }
                             // Folders open right here in the grid, like macOS
-                            onClicked: {
-                                if (modelData.downloading)
-                                    return;   // nothing to open until it's finished
-                                modelData.isDir ? root.enterFolder(modelData) : root.openUrl(modelData.url);
+                            onClicked: mouse => {
+                                if (root.renamingPath !== "") {
+                                    // A click anywhere else finishes the rename first, like Dolphin
+                                    if (!cell.renaming)
+                                        root.finishRename();
+                                } else if (mouse.button === Qt.RightButton) {
+                                    root.showFileMenu(modelData, cell, mouse.x, mouse.y, true);
+                                } else if (root.selectClick(modelData, mouse.modifiers)) {
+                                    return;   // Ctrl/Shift-click picked it
+                                } else if (!modelData.downloading) {   // nothing to open until it's finished
+                                    root.clearSelection();
+                                    root.openEntry(modelData, true);
+                                }
                             }
 
                             FileDrag {
@@ -947,7 +1670,7 @@ PlasmoidItem {
                                 anchors.margins: 2
                                 radius: Kirigami.Units.cornerRadius
                                 color: Kirigami.Theme.highlightColor
-                                opacity: cell.containsMouse ? 0.25 : 0
+                                opacity: cell.selected || cell.dropHere ? 0.5 : cell.containsMouse ? 0.25 : 0
                             }
 
                             FileIcon {
@@ -960,7 +1683,16 @@ PlasmoidItem {
                                 height: root.iconSize
                             }
 
+                            RenameField {
+                                anchors.top: cellIcon.bottom
+                                anchors.topMargin: Kirigami.Units.smallSpacing
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: parent.width - 2
+                                active: cell.renaming
+                            }
+
                             QQC2.Label {
+                                visible: !cell.renaming
                                 anchors.top: cellIcon.bottom
                                 anchors.topMargin: Kirigami.Units.smallSpacing
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -978,9 +1710,9 @@ PlasmoidItem {
 
                         QQC2.Label {
                             anchors.centerIn: parent
-                            visible: root.gridEntries.length === 0 && (!root.browsing || browseModel.status === FolderListModel.Ready)
+                            visible: root.shownEntries.length === 0 && (!root.browsing || browseModel.status === FolderListModel.Ready)
                             opacity: 0.6
-                            text: i18n("This folder is empty")
+                            text: root.filterText !== "" ? i18n("Nothing called “%1”", root.filterText.trim()) : i18n("This folder is empty")
                         }
                     }
 

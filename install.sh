@@ -19,8 +19,10 @@ fi
 
 # ---- Dependency check (warnings only) ----
 missing=()
-have kioclient || missing+=("kioclient (kde-cli-tools) - needed to move/copy files dropped on the stack")
-have xdg-mime  || missing+=("xdg-mime (xdg-utils) - needed to show your file manager's name")
+have kioclient  || missing+=("kioclient (kde-cli-tools) - needed to move/copy/bin files")
+have kstart     || missing+=("kstart (kde-cli-tools) - needed for Open With")
+have xdg-mime   || missing+=("xdg-mime (xdg-utils) - needed for your file manager's name and Open With")
+have dbus-send  || missing+=("dbus-send (dbus tools) - needed for Show in file manager and Copy Location")
 
 qml_dir=""
 for q in qtpaths6 qtpaths-qt6 qtpaths; do
@@ -29,10 +31,11 @@ done
 if [ -n "$qml_dir" ] && [ -d "$qml_dir" ]; then
     [ -d "$qml_dir/Qt/labs/folderlistmodel" ] || missing+=("Qt folder list QML module - REQUIRED, the widget won't load (Debian/Ubuntu: qml6-module-qt-labs-folderlistmodel)")
     [ -d "$qml_dir/QtQuick/Dialogs" ]         || missing+=("Qt Quick Dialogs QML module - needed for the folder picker in the settings (Debian/Ubuntu: qml6-module-qtquick-dialogs)")
+    [ -d "$qml_dir/org/kde/iconthemes" ]      || missing+=("KDE Icon Themes QML module - needed for the icon picker in the settings (Debian/Ubuntu: qml6-module-org-kde-iconthemes)")
 fi
 
 optional=()
-have python3                || optional+=("python3 - previews of anything other than pictures")
+have python3                || optional+=("python3 - previews of anything other than pictures, and the Open With app list")
 have pdftoppm               || optional+=("pdftoppm (poppler-utils) - PDF previews")
 have ffmpeg                 || optional+=("ffmpeg - video and album art previews")
 have gsf-office-thumbnailer || optional+=("gsf-office-thumbnailer (libgsf) - office document previews")

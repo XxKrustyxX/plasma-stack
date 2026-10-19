@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.15
+- Drop into a subfolder: hold files over the dock icon and the stack opens; hold over a folder to open it, or over a folder behind to go back; drop on a folder or the box. Dragging out closes it.
+- Files dragged from the stack onto one of its own folders move into it.
+
+## 1.14
+- Choose the dock icon for each Stack (KDE icon picker), or keep it automatic.
+
+## 1.13
+- New files get a dot, and the dock icon shows how many arrived since the stack was last closed. Can be turned off.
+- Right-clicking a folder no longer lists the default file manager twice.
+
+## 1.12
+- Type to filter: start typing with the stack open to show only matching files.
+
+## 1.11
+- Select several files (Ctrl-click, Shift-click, Ctrl+A) and drag or right-click them together.
+
+## 1.10
+- Right-click menu on files and folders: Open, Open With, Show in file manager, Rename, Copy Location, Move to Bin.
+
 ## 1.9
 - Previews: PDF first page, video frame, album art, office document previews. Reuses the shared freedesktop thumbnail cache, makes missing ones in the background, and deletes unused ones after 60 days. Setting to turn previews off.
 - Downloads: in-progress Firefox/Chrome/Edge/Brave/Opera downloads are shown under their real name with a live size, the dock icon shows a progress bar, and it bounces when a download finishes (can be turned off).

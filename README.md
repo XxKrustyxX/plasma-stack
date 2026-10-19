@@ -21,9 +21,30 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 - **Stacked on top (grid and fan):** the folder opens as a new box or fan on top. The folders you came through stay visible behind it (as name strips above the grid, or as dimmed fans off to the right). Click one to jump back to that folder.
 - <kbd>Esc</kbd> closes everything. **Open in *File Manager*** opens the folder you're currently in.
 
+**Right-click a file or folder**
+- **Open**, plus **Open in *File Manager*** for folders.
+- **Open With:** the apps that can open that file, your default first, plus **Other Application…** (KDE's "Choose Application" window).
+- **Show in *File Manager***, with the file selected.
+- **Rename** right in the stack. The name is selected without its ending, so `.pdf` stays. <kbd>Enter</kbd> or clicking elsewhere saves it, <kbd>Esc</kbd> cancels, and a name that's already taken is refused with a message.
+- **Copy Location** and **Move to Bin**.
+
+**Selecting several files**
+- <kbd>Ctrl</kbd>-click adds or removes a file, <kbd>Shift</kbd>-click selects a range, and <kbd>Ctrl</kbd>+<kbd>A</kbd> selects everything shown. <kbd>Esc</kbd> clears the selection before it closes the stack.
+- Dragging or right-clicking a selected file acts on the whole selection: Open All, Open With, Show, Copy Locations, Move to Bin.
+
+**Type to filter**
+- With the stack open, just start typing: a search box replaces the folder name and only matching files are shown. <kbd>Enter</kbd> opens the first match, and <kbd>Esc</kbd> brings everything back. In the fan, typing switches to the grid.
+
+**New files**
+- Files added since you last closed the stack get a dot, and the dock icon shows how many, like the badges on app icons. Closing the stack counts as "seen".
+- Copies that keep an old date and files moved in from elsewhere count too. Downloads count once they've finished.
+- This can be turned off.
+
 **Drag and drop**
 - **Drag files out** of the fan or grid into a file manager, the desktop, an email, an upload box, and so on. The stack stays open while you drag.
 - **Drop files onto the dock icon** to get a *Move Here / Copy Here / Cancel* menu, like Dolphin's. Hold <kbd>Shift</kbd> to move or <kbd>Ctrl</kbd> to copy without the menu. Links dropped from a browser are downloaded into the folder, and files that are already in the folder are skipped.
+- **Drop into a subfolder:** hold the files over the dock icon for a moment and the stack opens. Hold over a folder inside it to open that folder, or over a folder behind to go back up. Drop on a folder to put the files there, or anywhere else in the box for the folder on show. Dragging back out closes the stack again. (macOS calls this spring-loading.)
+- Drag a file from the stack onto one of its own folders to move it there.
 
 **Previews**
 - Pictures show the picture itself, PDFs their first page, videos a frame, music files their album art, and LibreOffice / Microsoft Office documents the preview stored inside them.
@@ -36,6 +57,7 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 - The dock icon bounces when a download finishes. This can be turned off.
 
 **Other**
+- **Choose the dock icon** for each Stack with KDE's icon picker (any icon, or your own picture). By default it's picked from the folder: Downloads, Documents, Pictures and so on.
 - Hovering over the dock icon shows the folder's name, in the same style as the dock's app icons.
 - The "Open in …" buttons show the name of your default file manager (Dolphin, COSMIC Files, and so on) and open the folder in it.
 - The popup is only built while the stack is open, so the widget is light when idle (a few MB in `plasmashell` and one inotify watch).
@@ -80,9 +102,11 @@ These come with a normal Plasma 6 desktop **except on Debian/Ubuntu/Kubuntu**, w
 | Qt Quick Dialogs QML module | folder picker in the settings | `qt6-qtdeclarative` | `qt6-declarative` | `qt6-declarative-imports` | **`qml6-module-qtquick-dialogs`** |
 | Plasma 5 Support | runs the helper scripts | `plasma5support` | `plasma5support` | `plasma5support6` | `qml6-module-org-kde-plasma-plasma5support` |
 | KDE Declarative | drag and drop | `kf6-kdeclarative` | `kdeclarative` | `kf6-kdeclarative` | `qml6-module-org-kde-draganddrop` |
-| `kioclient` | moves/copies files dropped on the stack | `kde-cli-tools` | `kde-cli-tools` | `kde-cli-tools6` | `kde-cli-tools` |
-| `xdg-mime` | finds your default file manager's name | `xdg-utils` | `xdg-utils` | `xdg-utils` | `xdg-utils` |
-| `bash`, coreutils | helper scripts | always installed | | | |
+| KDE Icon Themes QML module | icon picker in the settings | `kf6-kiconthemes` | `kiconthemes` | `kf6-kiconthemes` | `qml6-module-org-kde-iconthemes` |
+| `kioclient`, `kstart` | move/copy/bin files, Open With | `kde-cli-tools` | `kde-cli-tools` | `kde-cli-tools6` | `kde-cli-tools` |
+| `xdg-mime` | finds your default file manager and file types | `xdg-utils` | `xdg-utils` | `xdg-utils` | `xdg-utils` |
+| `dbus-send` | Show in file manager, Copy Location | `dbus-tools` | `dbus` | `dbus-1-tools` | `dbus-bin` |
+| `bash`, coreutils, findutils | helper scripts | always installed | | | |
 
 ### Optional (previews)
 
@@ -90,7 +114,7 @@ If one of these is missing, that file type just keeps its normal icon. Nothing b
 
 | What | Previews of | Fedora | Arch | openSUSE | Debian / Ubuntu |
 |---|---|---|---|---|---|
-| `python3` | everything except pictures (runs the preview helper) | `python3` | `python` | `python3` | `python3` |
+| `python3` | previews of everything except pictures, and the app list under **Open With** | `python3` | `python` | `python3` | `python3` |
 | `pdftoppm` | PDF pages | `poppler-utils` | `poppler` | `poppler-tools` | `poppler-utils` |
 | `ffmpeg` | video frames, album art | `ffmpeg-free` (or `ffmpeg` from RPM Fusion) | `ffmpeg` | `ffmpeg` | `ffmpeg` |
 | `gsf-office-thumbnailer` | LibreOffice / MS Office documents | `libgsf` | `libgsf` | `gsf-office-thumbnailer` | `libgsf-bin` |
@@ -156,11 +180,13 @@ Right-click the Stack on the dock → **Configure Stack…**
 | Setting | Options | Default |
 |---|---|---|
 | Folder | any folder | Downloads |
+| Icon | Automatic, or any icon / picture | Automatic (from the folder) |
 | Open as | Fan / Grid / Automatic | Fan |
 | Folders open | In place (grid) / in file manager (fan), *or* Stacked on top | In place |
 | Sort by | Newest first / Name | Newest first |
 | Items in the fan | 3–20 | 10 |
 | Previews | Show previews of files | on |
+| New files | Mark files added since you last looked | on |
 | Downloads | Bounce when a download finishes | on |
 
 Each Stack on the panel has its own settings, so you can have one for Downloads, one for Documents, and so on.
@@ -178,8 +204,11 @@ package/                         the widget (installed as a Plasma applet packag
     ├── ui/main.qml              the dock icon, fan, grid, drag/drop, downloads, previews
     ├── ui/configGeneral.qml     settings page
     └── code/
+        ├── apps.py              lists the apps that can open a file (for Open With)
         ├── drop.sh              moves/copies files dropped on the stack (via kioclient)
+        ├── file-actions.sh      the right-click menu's actions (open with, show, rename, bin, copy)
         ├── file-manager-name.sh prints the default file manager's name
+        ├── new-files.sh         lists files added since the stack was last closed
         └── thumbs.py            finds existing previews / makes missing ones
 install.sh                       install / update / add to dock
 uninstall.sh                     remove
@@ -193,7 +222,8 @@ uninstall.sh                     remove
 - **The panel gap fix relies on Plasma internals.** When you drag files over a Plasma panel, the panel opens a space for a new widget. Stack closes that space when you drop onto it by reaching into the panel's own drop area. If a future Plasma release changes that code, the space may stay open after a drop (it goes away when you move the mouse off the panel). Nothing else is affected.
 - **Download progress has no percentage**, because browsers don't record the final file size anywhere a widget can read.
 - **Microsoft Office files** only get a preview if the file has one saved inside it, which many don't.
-- Every custom folder uses the same folder icon. Hover over it to see which folder it is.
+- **Dropping into subfolders is the newest feature (1.15)** and has had the least real-world testing. It relies on the stack, opened in the middle of a drag, receiving that drag from the other app.
+- **Copy Location** uses Plasma's clipboard service (Klipper), because a panel widget can't always set the clipboard itself on Wayland. Without Klipper it falls back to `wl-copy` or `xclip` if installed.
 
 ## Ideas / roadmap
 
@@ -202,7 +232,8 @@ uninstall.sh                     remove
 - Quick options when you right-click the dock icon (sort, view)
 - More sort options (date added, date created, kind, size)
 - Arrow-key navigation in the grid, and Quick Look with <kbd>Space</kbd>
-- Choose a custom icon for each Stack
+- Tidy-up: fade old downloads, with a button to move them to the Bin
+- Filters: hide hidden files, or show only some types (for example, pictures only)
 
 Suggestions and pull requests are welcome.
 

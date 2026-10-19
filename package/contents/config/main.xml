@@ -17,5 +17,11 @@
     <!-- Pictures, PDF pages, video frames, album art and office documents instead of plain icons -->
     <entry name="showPreviews" type="Bool"><default>true</default></entry>
     <entry name="maxItems" type="Int"><default>10</default></entry>
+    <!-- Icon on the dock: an icon name or a picture file. Empty = picked from the folder (Downloads, Documents, ...) -->
+    <entry name="icon" type="String"><default></default></entry>
+    <!-- Dot on files added since the stack was last closed, and how many on the dock icon -->
+    <entry name="markNew" type="Bool"><default>true</default></entry>
+    <!-- When the stack was last closed (seconds since 1970); files that arrive after it are new -->
+    <entry name="lastSeen" type="String"><default></default></entry>
   </group>
 </kcfg>
