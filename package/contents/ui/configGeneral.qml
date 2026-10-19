@@ -1,0 +1,91 @@
+import QtQuick
+import QtQuick.Controls as QQC2
+import QtQuick.Layouts
+import QtQuick.Dialogs
+import org.kde.kirigami as Kirigami
+import org.kde.kcmutils as KCM
+
+KCM.SimpleKCM {
+    property alias cfg_folder: folderField.text
+    property alias cfg_sortMode: sortBox.currentIndex
+    property alias cfg_viewMode: viewBox.currentIndex
+    property alias cfg_subfolderMode: subfolderBox.currentIndex
+    property alias cfg_maxItems: maxSpin.value
+    property alias cfg_bounceOnDownload: bounceBox.checked
+    property alias cfg_showPreviews: previewsBox.checked
+
+    // Plasma also hands every settings page each option's default value; we don't use them
+    property var cfg_folderDefault
+    property var cfg_viewModeDefault
+    property var cfg_subfolderModeDefault
+    property var cfg_sortModeDefault
+    property var cfg_maxItemsDefault
+    property var cfg_showPreviewsDefault
+    property var cfg_bounceOnDownloadDefault
+
+    Kirigami.FormLayout {
+        RowLayout {
+            Kirigami.FormData.label: i18n("Folder:")
+            QQC2.TextField {
+                id: folderField
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+                placeholderText: i18n("Downloads")
+            }
+            QQC2.Button {
+                icon.name: "document-open-folder"
+                text: i18n("Choose…")
+                onClicked: picker.open()
+            }
+        }
+
+        QQC2.ComboBox {
+            id: viewBox
+            Kirigami.FormData.label: i18n("Open as:")
+            model: [i18n("Fan"), i18n("Grid"), i18n("Automatic")]
+        }
+
+        QQC2.ComboBox {
+            id: subfolderBox
+            Kirigami.FormData.label: i18n("Folders open:")
+            model: [i18n("In place (grid) / in file manager (fan)"), i18n("Stacked on top")]
+        }
+
+        QQC2.ComboBox {
+            id: sortBox
+            Kirigami.FormData.label: i18n("Sort by:")
+            model: [i18n("Newest first"), i18n("Name")]
+        }
+
+        QQC2.SpinBox {
+            id: maxSpin
+            Kirigami.FormData.label: i18n("Items in the fan:")
+            from: 3
+            to: 20
+        }
+
+        QQC2.CheckBox {
+            id: previewsBox
+            Kirigami.FormData.label: i18n("Previews:")
+            text: i18n("Show previews of files")
+        }
+
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("Pictures, PDF pages, video frames, album art and office documents. When off, every file shows its plain icon.")
+        }
+
+        QQC2.CheckBox {
+            id: bounceBox
+            Kirigami.FormData.label: i18n("Downloads:")
+            text: i18n("Bounce when a download finishes")
+        }
+    }
+
+    FolderDialog {
+        id: picker
+        onAccepted: folderField.text = decodeURIComponent(selectedFolder.toString().replace(/^file:\/\//, ""))
+    }
+}

@@ -1,0 +1,20 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "XxKrustyxX"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "A folder for the dock that fans its newest files out, like a macOS Stack",
+        "Icon": "folder-download",
+        "Id": "io.github.xxkrustyxx.stack",
+        "License": "GPL-2.0+",
+        "Name": "Stack",
+        "Version": "1.9",
+        "Website": "https://github.com/XxKrustyxX/plasma-stack",
+        "BugReportUrl": "https://github.com/XxKrustyxX/plasma-stack/issues"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
