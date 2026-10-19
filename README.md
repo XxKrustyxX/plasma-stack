@@ -2,6 +2,8 @@
 
 Stack is a Plasma 6 panel widget that works like a *Stack* in the macOS Dock. Click the folder icon and the folder's newest files fan up out of the dock in a curve, or open in a grid. Click a file to open it, or drag it somewhere else.
 
+You can also right-click files (Open With, Rename, Move to Bin, …), select several at once, type to filter, see which files are new, and drop files onto the icon, or hold them there to drop them into a folder inside.
+
 It shows your **Downloads** folder by default. You can point it at any folder, and you can add several Stacks, each with its own settings.
 
 > **Status:** personal project. I use it every day, but it has only been tested on one setup (see [Tested on](#tested-on)). Bug reports from other distros and Plasma versions are very welcome.
@@ -19,7 +21,7 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 **Folders inside the stack**
 - **In place (grid):** the folder opens inside the same box. A back button shows the parent folder's name, and <kbd>Backspace</kbd> goes back.
 - **Stacked on top (grid and fan):** the folder opens as a new box or fan on top. The folders you came through stay visible behind it (as name strips above the grid, or as dimmed fans off to the right). Click one to jump back to that folder.
-- <kbd>Esc</kbd> closes everything. **Open in *File Manager*** opens the folder you're currently in.
+- **Open in *File Manager*** opens the folder you're currently in. <kbd>Esc</kbd> closes the stack (see [Keyboard and mouse](#keyboard-and-mouse) for what it cancels first).
 
 **Right-click a file or folder**
 - **Open**, plus **Open in *File Manager*** for folders.
@@ -30,20 +32,29 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 
 **Selecting several files**
 - <kbd>Ctrl</kbd>-click adds or removes a file, <kbd>Shift</kbd>-click selects a range, and <kbd>Ctrl</kbd>+<kbd>A</kbd> selects everything shown. <kbd>Esc</kbd> clears the selection before it closes the stack.
-- Dragging or right-clicking a selected file acts on the whole selection: Open All, Open With, Show, Copy Locations, Move to Bin.
+- Dragging or right-clicking a selected file acts on the whole selection: Open All, Open With, Show, Copy Locations, Move to Bin. Rename and Other Application… only appear for a single file, and Open With is left out when the selection mixes files and folders.
+- Right-clicking a file outside the selection drops the selection and acts on just that file. A plain click opens the file as usual and clears the selection.
 
 **Type to filter**
-- With the stack open, just start typing: a search box replaces the folder name and only matching files are shown. <kbd>Enter</kbd> opens the first match, and <kbd>Esc</kbd> brings everything back. In the fan, typing switches to the grid.
+- With the stack open, just start typing: a search box replaces the folder name and only files whose names contain the text are shown (capitals don't matter). <kbd>Enter</kbd> opens the first match, and <kbd>Esc</kbd>, the clear button or deleting the text brings everything back.
+- The fan only shows a few files, so typing in the fan switches to the grid.
+- The filter applies to the folder on show. Opening another folder, or closing the stack, clears it.
 
 **New files**
 - Files added since you last closed the stack get a dot, and the dock icon shows how many, like the badges on app icons. Closing the stack counts as "seen".
-- Copies that keep an old date and files moved in from elsewhere count too. Downloads count once they've finished.
-- This can be turned off.
+- Copies that keep an old date and files moved in from elsewhere count too. Downloads count once they've finished. Hidden files don't count.
+- Only the Stack's own folder is watched, not the folders inside it. Changing the Stack's folder in the settings starts it fresh.
+- The marks survive restarts and logging out. This can be turned off.
 
 **Drag and drop**
 - **Drag files out** of the fan or grid into a file manager, the desktop, an email, an upload box, and so on. The stack stays open while you drag.
 - **Drop files onto the dock icon** to get a *Move Here / Copy Here / Cancel* menu, like Dolphin's. Hold <kbd>Shift</kbd> to move or <kbd>Ctrl</kbd> to copy without the menu. Links dropped from a browser are downloaded into the folder, and files that are already in the folder are skipped.
-- **Drop into a subfolder:** hold the files over the dock icon for a moment and the stack opens. Hold over a folder inside it to open that folder, or over a folder behind to go back up. Drop on a folder to put the files there, or anywhere else in the box for the folder on show. Dragging back out closes the stack again. (macOS calls this spring-loading.)
+- **Drop into a subfolder** (macOS calls this spring-loading):
+  - Hold the files over the dock icon for a moment (about ¾ of a second) and the stack opens.
+  - Move over a folder inside it and it lights up. Hold there and it opens. This happens in the grid, and in the fan when *Folders open* is set to *Stacked on top*; otherwise you can still drop onto the folder.
+  - Hold over one of the folders behind (a name strip above the grid, or an earlier fan) to go back up to it.
+  - Drop on a folder to put the files there, or anywhere else in the box for the folder on show. The usual Move / Copy menu appears (<kbd>Shift</kbd> and <kbd>Ctrl</kbd> work too), then the stack closes.
+  - Drag back out without dropping and the stack closes again.
 - Drag a file from the stack onto one of its own folders to move it there.
 
 **Previews**
@@ -61,6 +72,26 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 - Hovering over the dock icon shows the folder's name, in the same style as the dock's app icons.
 - The "Open in …" buttons show the name of your default file manager (Dolphin, COSMIC Files, and so on) and open the folder in it.
 - The popup is only built while the stack is open, so the widget is light when idle (a few MB in `plasmashell` and one inotify watch).
+
+---
+
+## Keyboard and mouse
+
+| | |
+|---|---|
+| Click the dock icon | open / close the stack |
+| Click a file | open it |
+| Click a folder | open it in the stack (grid, or fan with *Stacked on top*), otherwise in the file manager |
+| Right-click a file or folder | the file menu |
+| <kbd>Ctrl</kbd>-click / <kbd>Shift</kbd>-click | add to the selection / select a range |
+| <kbd>Ctrl</kbd>+<kbd>A</kbd> | select everything shown |
+| Type letters | filter by name |
+| <kbd>Enter</kbd> (while filtering) | open the first match |
+| <kbd>Backspace</kbd> | go back to the parent folder (when not filtering or renaming) |
+| <kbd>Esc</kbd> | cancels, in this order: renaming, the filter, the selection; otherwise closes the stack |
+| Drag a file out | drag it (and the rest of the selection) into another app |
+| Drop on the dock icon | Move / Copy menu; hold <kbd>Shift</kbd> to move, <kbd>Ctrl</kbd> to copy straight away |
+| Hold a drag on the dock icon | opens the stack so you can drop into a folder inside |
 
 ---
 
@@ -94,7 +125,7 @@ If you try it on something else, please [open an issue](https://github.com/XxKru
 
 ### Required
 
-These come with a normal Plasma 6 desktop **except on Debian/Ubuntu/Kubuntu**, where the first two are separate packages.
+These come with a normal Plasma 6 desktop. **Debian/Ubuntu/Kubuntu** split QML modules into separate `qml6-module-…` packages, so the first two (and possibly the other QML modules) may need installing there.
 
 | What | Why | Fedora | Arch | openSUSE | Debian / Ubuntu |
 |---|---|---|---|---|---|
@@ -108,13 +139,13 @@ These come with a normal Plasma 6 desktop **except on Debian/Ubuntu/Kubuntu**, w
 | `dbus-send` | Show in file manager, Copy Location | `dbus-tools` | `dbus` | `dbus-1-tools` | `dbus-bin` |
 | `bash`, coreutils, findutils | helper scripts | always installed | | | |
 
-### Optional (previews)
+### Optional
 
-If one of these is missing, that file type just keeps its normal icon. Nothing breaks. Pictures, and any preview Dolphin has already made, work without any of them.
+If one of these is missing, nothing breaks: that file type just keeps its normal icon. Pictures, and any preview Dolphin has already made, work without any of them. Without `python3` the right-click menu also has no app list under **Open With** (Other Application… still works).
 
-| What | Previews of | Fedora | Arch | openSUSE | Debian / Ubuntu |
+| What | Used for | Fedora | Arch | openSUSE | Debian / Ubuntu |
 |---|---|---|---|---|---|
-| `python3` | previews of everything except pictures, and the app list under **Open With** | `python3` | `python` | `python3` | `python3` |
+| `python3` | previews of everything except pictures; the app list under **Open With** | `python3` | `python` | `python3` | `python3` |
 | `pdftoppm` | PDF pages | `poppler-utils` | `poppler` | `poppler-tools` | `poppler-utils` |
 | `ffmpeg` | video frames, album art | `ffmpeg-free` (or `ffmpeg` from RPM Fusion) | `ffmpeg` | `ffmpeg` | `ffmpeg` |
 | `gsf-office-thumbnailer` | LibreOffice / MS Office documents | `libgsf` | `libgsf` | `gsf-office-thumbnailer` | `libgsf-bin` |
@@ -201,7 +232,8 @@ package/                         the widget (installed as a Plasma applet packag
 └── contents/
     ├── config/main.xml          settings and their defaults
     ├── config/config.qml        settings page list
-    ├── ui/main.qml              the dock icon, fan, grid, drag/drop, downloads, previews
+    ├── ui/main.qml              the dock icon, fan, grid, right-click menu, selection, filter,
+    │                            renaming, drag and drop (incl. spring-loading), downloads, previews, new files
     ├── ui/configGeneral.qml     settings page
     └── code/
         ├── apps.py              lists the apps that can open a file (for Open With)
@@ -224,6 +256,9 @@ uninstall.sh                     remove
 - **Microsoft Office files** only get a preview if the file has one saved inside it, which many don't.
 - **Dropping into subfolders is the newest feature (1.15)** and has had the least real-world testing. It relies on the stack, opened in the middle of a drag, receiving that drag from the other app.
 - **Copy Location** uses Plasma's clipboard service (Klipper), because a panel widget can't always set the clipboard itself on Wayland. Without Klipper it falls back to `wl-copy` or `xclip` if installed.
+- **"New" uses the time a file arrived in the folder** (its inode change time), which is what catches copies and moves. The catch: renaming a file or changing its permissions outside the stack also marks it as new.
+- **Open With on several files** starts the app once per file, so some apps open a window for each.
+- **Other Application…** opens KDE's own "Choose Application" window, so it needs KDE's KIO (part of any Plasma desktop).
 
 ## Ideas / roadmap
 
