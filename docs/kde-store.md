@@ -1,6 +1,8 @@
 # KDE Store listing
 
-Text and settings for the Folder Stack page on store.kde.org, ready to paste.
+Text and settings for the Folder Stack page on store.kde.org: https://store.kde.org/p/2379769/
+
+To publish a new version: build it (`bash build.sh`), then on the store go to your Products → Folder Stack → **Files** → **Add File(s)**, set the version, and add a **Changelog** entry.
 
 ## Basics
 

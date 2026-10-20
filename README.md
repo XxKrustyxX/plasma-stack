@@ -4,6 +4,8 @@ Folder Stack is a Plasma 6 panel widget that works like a *Stack* in the macOS D
 
 You can also right-click files (Open With, Rename, Move to Bin, …), select several at once, type to filter, see which files are new, and drop files onto the icon, or hold them there to drop them into a folder inside.
 
+**Get it:** [KDE Store](https://store.kde.org/p/2379769/) · [Releases](https://github.com/XxKrustyxX/plasma-stack/releases) · or see [Install](#install).
+
 It shows your **Downloads** folder by default. You can point it at any folder, and you can add several Stacks, each with its own settings.
 
 <p align="center">
@@ -178,7 +180,15 @@ If one of these is missing, nothing breaks: that file type just keeps its normal
 
 ## Install
 
-### With the script (recommended)
+### From the KDE Store (easiest)
+
+Right-click your panel → **Add or Manage Widgets…** → **Get New** → **Download New Plasma Widgets…**, search for **Folder Stack** and click **Install**. Then find **Folder Stack** in the widget list and drag it onto your dock.
+
+Store page: https://store.kde.org/p/2379769/
+
+Installing from the store doesn't check the dependencies for you. If the widget shows an error instead of a folder, see [Dependencies](#dependencies), especially on Debian/Ubuntu.
+
+### With the script
 
 ```bash
 git clone https://github.com/XxKrustyxX/plasma-stack.git
@@ -200,7 +210,7 @@ It looks for `qdbus6`, `qdbus-qt6` or `qdbus` (the name varies by distro) to add
 2. Right-click your panel → **Add or Manage Widgets…** → **Get New** → **Install Widget From Local File…** and choose the file.
 3. Search for **Folder Stack** in the widget list and drag it onto your dock.
 
-This (and the KDE Store, once it's listed there) skips `install.sh`, so nothing checks the dependencies for you. If the widget shows an error instead of a folder, see [Dependencies](#dependencies), especially on Debian/Ubuntu.
+Like the store, this skips `install.sh`, so nothing checks the dependencies for you. If the widget shows an error instead of a folder, see [Dependencies](#dependencies), especially on Debian/Ubuntu.
 
 ### By hand
 
@@ -275,6 +285,7 @@ uninstall.sh                     remove
 build.sh                         makes dist/folder-stack-<version>.plasmoid for releases and the KDE Store
 docs/screenshots/                the pictures in this README (made with a demo folder)
 docs/kde-store.md                text for the KDE Store page
+docs/logo.png                    the KDE Store logo (KDE's Breeze download-folder icon)
 ```
 
 ---
