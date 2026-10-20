@@ -6,12 +6,12 @@
             }
         ],
         "Category": "Utilities",
-        "Description": "A folder for the dock that fans its newest files out, like a macOS Stack",
+        "Description": "A macOS-style Stack for the dock: a folder's newest files fan out or open in a grid, with previews, a right-click menu, type to filter, new-file badges and drag and drop",
         "Icon": "folder-download",
         "Id": "io.github.xxkrustyxx.stack",
         "License": "GPL-2.0+",
-        "Name": "Stack",
-        "Version": "1.15",
+        "Name": "Folder Stack",
+        "Version": "1.16",
         "Website": "https://github.com/XxKrustyxX/plasma-stack",
         "BugReportUrl": "https://github.com/XxKrustyxX/plasma-stack/issues"
     },

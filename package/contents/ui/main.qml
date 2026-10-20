@@ -23,6 +23,13 @@ PlasmoidItem {
     readonly property string folderName: decodeURIComponent(folderUrl.toString().replace(/\/$/, "").split("/").pop())
     readonly property int maxItems: Math.max(1, Plasmoid.configuration.maxItems)
 
+    // Which edge the dock is on. The fan climbs away from a bottom dock and hangs down from a top one;
+    // on a dock down the side of the screen (like macOS) the stack always opens as the grid.
+    readonly property bool dockOnTop: Plasmoid.location === PlasmaCore.Types.TopEdge
+    readonly property bool dockOnLeft: Plasmoid.location === PlasmaCore.Types.LeftEdge
+    readonly property bool dockOnRight: Plasmoid.location === PlasmaCore.Types.RightEdge
+    readonly property bool fanAllowed: !dockOnLeft && !dockOnRight
+
     // Fan geometry
     readonly property int iconSize: Kirigami.Units.iconSizes.large
     readonly property int rowHeight: iconSize + Kirigami.Units.smallSpacing * 3
@@ -286,7 +293,7 @@ PlasmoidItem {
         subEntries = [];
         parentLists = [];
         const mode = Plasmoid.configuration.viewMode;
-        showGrid = mode === 1 || (mode === 2 && list.length > maxItems);
+        showGrid = !fanAllowed || mode === 1 || (mode === 2 && list.length > maxItems);
         allEntries = list;
         requestThumbs(list);
         progress = 0;
@@ -1080,6 +1087,7 @@ PlasmoidItem {
 
     fullRepresentation: MouseArea {
         id: compact
+        property real hop: 0   // how far the icon has bounced, as a share of its size
         hoverEnabled: true
         // Square, the size of the other dock icons
         Layout.minimumWidth: Plasmoid.formFactor === PlasmaCore.Types.Vertical ? 0 : height
@@ -1104,17 +1112,21 @@ PlasmoidItem {
             // Swells a little while files are held over it, like the macOS dock
             scale: dropZone.hovering ? 1.15 : 1
             Behavior on scale { NumberAnimation { duration: 120 } }
-            transform: Translate { id: bounceShift }
+            // Hops away from the screen edge the dock is on
+            transform: Translate {
+                x: root.dockOnLeft ? compact.hop * compact.width : root.dockOnRight ? -compact.hop * compact.width : 0
+                y: root.fanAllowed ? (root.dockOnTop ? 1 : -1) * compact.hop * compact.height : 0
+            }
         }
 
         // Hops twice when a download finishes, like the macOS Downloads stack
         // (kept low: a widget can't draw above the top edge of the dock)
         SequentialAnimation {
             id: bounce
-            NumberAnimation { target: bounceShift; property: "y"; to: -compact.height * 0.25; duration: 180; easing.type: Easing.OutQuad }
-            NumberAnimation { target: bounceShift; property: "y"; to: 0; duration: 180; easing.type: Easing.InQuad }
-            NumberAnimation { target: bounceShift; property: "y"; to: -compact.height * 0.12; duration: 140; easing.type: Easing.OutQuad }
-            NumberAnimation { target: bounceShift; property: "y"; to: 0; duration: 140; easing.type: Easing.InQuad }
+            NumberAnimation { target: compact; property: "hop"; to: 0.25; duration: 180; easing.type: Easing.OutQuad }
+            NumberAnimation { target: compact; property: "hop"; to: 0; duration: 180; easing.type: Easing.InQuad }
+            NumberAnimation { target: compact; property: "hop"; to: 0.12; duration: 140; easing.type: Easing.OutQuad }
+            NumberAnimation { target: compact; property: "hop"; to: 0; duration: 140; easing.type: Easing.InQuad }
         }
 
         Connections {
@@ -1353,12 +1365,13 @@ PlasmoidItem {
                                     width: root.labelWidth + Kirigami.Units.smallSpacing + root.iconSize
                                     height: root.rowHeight
                                     x: cx - width + root.iconSize / 2
-                                    y: cy - height / 2
+                                    // (mirrored top to bottom when the dock is at the top of the screen)
+                                    y: root.dockOnTop ? canvas.height - cy - height / 2 : cy - height / 2
                                     opacity: root.progress * fanLayer.grow
                                     transform: Rotation {
                                         origin.x: row.width - root.iconSize / 2
                                         origin.y: row.height / 2
-                                        angle: row.angle * 180 / Math.PI
+                                        angle: (root.dockOnTop ? -1 : 1) * row.angle * 180 / Math.PI
                                     }
 
                                     MouseArea {
@@ -1483,18 +1496,22 @@ PlasmoidItem {
                         z: 0
                         width: gridBox.width
                         height: gridBox.height
-                        y: gridBox.y - behind * gridStack.step
+                        // Peeking out on the side away from the dock: above it, or below it for a top dock
+                        y: root.dockOnTop ? gridBox.y + behind * gridStack.step : gridBox.y - behind * gridStack.step
                         // Slightly smaller and darker the further back it is
                         scale: 1 - 0.03 * behind
-                        transformOrigin: Item.Top
+                        transformOrigin: root.dockOnTop ? Item.Bottom : Item.Top
                         radius: gridBox.radius
                         color: Qt.darker(Kirigami.Theme.backgroundColor, 1 + 0.12 * behind)
                         border.color: gridBox.border.color
                         opacity: root.progress
 
                         Kirigami.Heading {
-                            anchors.top: parent.top
+                            // On the part that shows
+                            anchors.top: root.dockOnTop ? undefined : parent.top
+                            anchors.bottom: root.dockOnTop ? parent.bottom : undefined
                             anchors.topMargin: gridBox.pad
+                            anchors.bottomMargin: gridBox.pad
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: parent.width - gridBox.pad * 2
                             horizontalAlignment: Text.AlignHCenter
@@ -1520,7 +1537,7 @@ PlasmoidItem {
                     readonly property bool dropOpaque: true
                     visible: root.showGrid
                     z: 1    // above the stacked folders behind it
-                    y: gridStack.depth * gridStack.step
+                    y: root.dockOnTop ? 0 : gridStack.depth * gridStack.step
                     Kirigami.Theme.colorSet: Kirigami.Theme.Window
                     Kirigami.Theme.inherit: false
 
@@ -1536,12 +1553,12 @@ PlasmoidItem {
                     radius: Kirigami.Units.cornerRadius * 3
                     color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.96)
                     border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
-                    // Grows up out of the dock icon
+                    // Grows out of the dock icon, from whichever edge the dock is on
                     opacity: root.progress * (root.stackedFolders ? root.pushProgress : 1)
                     scale: 0.85 + 0.15 * root.progress
-                    transformOrigin: Item.Bottom
-                    // A newly stacked folder slides up into place
-                    transform: Translate { y: root.stackedFolders ? (1 - root.pushProgress) * gridStack.step : 0 }
+                    transformOrigin: root.dockOnTop ? Item.Top : root.dockOnLeft ? Item.Left : root.dockOnRight ? Item.Right : Item.Bottom
+                    // A newly stacked folder slides into place from the dock's side
+                    transform: Translate { y: root.stackedFolders ? (root.dockOnTop ? -1 : 1) * (1 - root.pushProgress) * gridStack.step : 0 }
 
                     // Folder name, with a back button once you've gone into a subfolder (unless they're stacked)
                     Item {

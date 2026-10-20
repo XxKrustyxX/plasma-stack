@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.16
+- Follows the dock's edge: the fan hangs down from a top dock; a dock down the left or right always gets the grid (the settings page says so); the grid, stacked folders and bounce follow the edge too.
+- Previews are remade when a file is replaced by a copy with an older date.
+- Public name is now "Folder Stack" (easier to find in the widget list). Same widget id, so settings are kept.
+- `build.sh` makes the `.plasmoid` file for releases.
+
 ## 1.15
 - Drop into a subfolder: hold files over the dock icon and the stack opens; hold over a folder to open it, or over a folder behind to go back; drop on a folder or the box. Dragging out closes it.
 - Files dragged from the stack onto one of its own folders move into it.

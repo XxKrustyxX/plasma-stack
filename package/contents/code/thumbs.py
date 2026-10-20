@@ -59,16 +59,19 @@ def png_mtime(png):
 
 def existing(path):
     try:
-        mtime = int(os.stat(path).st_mtime)
+        st = os.stat(path)
     except OSError:
         return None
+    mtime = int(st.st_mtime)
     name = cache_name(path)
     for size in ("large", "x-large", "xx-large", "normal"):
         png = os.path.join(SHARED, size, name)
         if os.path.exists(png) and png_mtime(png) == mtime:
             return png
+    # Ours is good if it was made after the file last changed. The change time counts too: a file
+    # replaced by a copy with an older date still has to get a new preview.
     png = os.path.join(OURS, name)
-    if os.path.exists(png) and os.stat(png).st_mtime >= mtime:
+    if os.path.exists(png) and os.stat(png).st_mtime >= max(st.st_mtime, st.st_ctime):
         return png
     return None
 

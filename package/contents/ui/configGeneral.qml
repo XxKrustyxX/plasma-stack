@@ -5,6 +5,8 @@ import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 import org.kde.iconthemes as KIconThemes
+import org.kde.plasma.plasmoid
+import org.kde.plasma.core as PlasmaCore
 
 KCM.SimpleKCM {
     id: page
@@ -91,8 +93,26 @@ KCM.SimpleKCM {
 
         QQC2.ComboBox {
             id: viewBox
+            visible: !page.dockOnSide
             Kirigami.FormData.label: i18n("Open as:")
             model: [i18n("Fan"), i18n("Grid"), i18n("Automatic")]
+        }
+
+        // A dock down the side of the screen always gets the grid (the choice above is kept for
+        // when the dock goes back to the top or bottom)
+        ColumnLayout {
+            visible: page.dockOnSide
+            Kirigami.FormData.label: i18n("Open as:")
+            QQC2.Label {
+                text: i18n("Grid")
+            }
+            QQC2.Label {
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+                wrapMode: Text.Wrap
+                font: Kirigami.Theme.smallFont
+                opacity: 0.7
+                text: i18n("The fan needs a dock along the top or bottom of the screen.")
+            }
         }
 
         QQC2.ComboBox {
@@ -109,6 +129,7 @@ KCM.SimpleKCM {
 
         QQC2.SpinBox {
             id: maxSpin
+            visible: !page.dockOnSide   // no fan on a side dock
             Kirigami.FormData.label: i18n("Items in the fan:")
             from: 3
             to: 20
@@ -149,6 +170,9 @@ KCM.SimpleKCM {
                 page.cfg_icon = iconName;
         }
     }
+
+    readonly property bool dockOnSide: Plasmoid.location === PlasmaCore.Types.LeftEdge
+                                       || Plasmoid.location === PlasmaCore.Types.RightEdge
 
     // Same choice the widget makes when no icon is set
     readonly property string automaticIcon: {

@@ -1,10 +1,15 @@
-# Stack — a macOS-style folder stack for the KDE Plasma 6 dock
+# Folder Stack — a macOS-style folder stack for the KDE Plasma 6 dock
 
-Stack is a Plasma 6 panel widget that works like a *Stack* in the macOS Dock. Click the folder icon and the folder's newest files fan up out of the dock in a curve, or open in a grid. Click a file to open it, or drag it somewhere else.
+Folder Stack is a Plasma 6 panel widget that works like a *Stack* in the macOS Dock. Click the folder icon and the folder's newest files fan up out of the dock in a curve, or open in a grid. Click a file to open it, or drag it somewhere else.
 
 You can also right-click files (Open With, Rename, Move to Bin, …), select several at once, type to filter, see which files are new, and drop files onto the icon, or hold them there to drop them into a folder inside.
 
 It shows your **Downloads** folder by default. You can point it at any folder, and you can add several Stacks, each with its own settings.
+
+<p align="center">
+  <img src="docs/screenshots/fan.png" alt="The fan: the newest files curve up out of the dock, with previews" width="300">
+  <img src="docs/screenshots/grid.png" alt="The grid: every file in a box above the dock" width="420">
+</p>
 
 > **Status:** personal project. I use it every day, but it has only been tested on one setup (see [Tested on](#tested-on)). Bug reports from other distros and Plasma versions are very welcome.
 
@@ -21,9 +26,18 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 **Folders inside the stack**
 - **In place (grid):** the folder opens inside the same box. A back button shows the parent folder's name, and <kbd>Backspace</kbd> goes back.
 - **Stacked on top (grid and fan):** the folder opens as a new box or fan on top. The folders you came through stay visible behind it (as name strips above the grid, or as dimmed fans off to the right). Click one to jump back to that folder.
+
+<img src="docs/screenshots/stacked-folders.png" alt="A folder opened on top, with its parent folder peeking out behind" width="420">
 - **Open in *File Manager*** opens the folder you're currently in. <kbd>Esc</kbd> closes the stack (see [Keyboard and mouse](#keyboard-and-mouse) for what it cancels first).
 
+**Works on any panel edge**
+- On a dock along the **bottom**, the fan curves up out of it. On a dock along the **top**, it hangs down instead.
+- On a dock down the **left or right** side, the stack always opens as the grid, like macOS. The settings page shows this instead of offering the fan, and your choice comes back if the dock moves to the top or bottom again.
+- The grid, the stacked folders and the bounce all follow the dock's edge too.
+
 **Right-click a file or folder**
+
+<img src="docs/screenshots/right-click-menu.png" alt="Right-click menu with Open With, Rename, Copy Location and Move to Bin" width="300">
 - **Open**, plus **Open in *File Manager*** for folders.
 - **Open With:** the apps that can open that file, your default first, plus **Other Application…** (KDE's "Choose Application" window).
 - **Show in *File Manager***, with the file selected.
@@ -35,7 +49,11 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 - Dragging or right-clicking a selected file acts on the whole selection: Open All, Open With, Show, Copy Locations, Move to Bin. Rename and Other Application… only appear for a single file, and Open With is left out when the selection mixes files and folders.
 - Right-clicking a file outside the selection drops the selection and acts on just that file. A plain click opens the file as usual and clears the selection.
 
+<img src="docs/screenshots/new-files-and-selection.png" alt="Two new files marked with dots, and two selected files" width="420">
+
 **Type to filter**
+
+<img src="docs/screenshots/type-to-filter.png" alt="Typing “voice” shows only the matching files" width="420">
 - With the stack open, just start typing: a search box replaces the folder name and only files whose names contain the text are shown (capitals don't matter). <kbd>Enter</kbd> opens the first match, and <kbd>Esc</kbd>, the clear button or deleting the text brings everything back.
 - The fan only shows a few files, so typing in the fan switches to the grid.
 - The filter applies to the folder on show. Opening another folder, or closing the stack, clears it.
@@ -45,6 +63,8 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 - Copies that keep an old date and files moved in from elsewhere count too. Downloads count once they've finished. Hidden files don't count.
 - Only the Stack's own folder is watched, not the folders inside it. Changing the Stack's folder in the settings starts it fresh.
 - The marks survive restarts and logging out. This can be turned off.
+
+<img src="docs/screenshots/new-files-badge.png" alt="The dock icon with a count of 2 new files" width="300">
 
 **Drag and drop**
 - **Drag files out** of the fan or grid into a file manager, the desktop, an email, an upload box, and so on. The stack stays open while you drag.
@@ -105,6 +125,7 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 | Qt | 6.11.2 |
 | Session | Wayland |
 | Panel | dock along the **bottom** of the screen (Icons-only Task Manager, "Dodge windows" visibility) |
+| Other edges | top, left and right checked with a test panel (fan, grid, stacked folders, settings page), not used day to day |
 
 **That is the only setup it has been tested on.**
 
@@ -113,7 +134,6 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 - **Other distros running Plasma 6** (Arch, openSUSE, KDE neon, Kubuntu, Debian, and so on). Nothing in the widget is Fedora-specific, but package names differ. See [Dependencies](#dependencies), especially the note for Debian/Ubuntu.
 - **Older Plasma 6 releases (6.0–6.6).** The widget only uses APIs that have existed since Plasma 6.0, and its metadata declares 6.0 as the minimum, but it has not been tried on anything older than 6.7.
 - **X11 sessions.** Nothing in it is Wayland-specific.
-- **Panels on the left, right or top.** The grid should work anywhere. The fan is designed to curve *upward* from a bottom dock, so it will look odd on other edges.
 
 **Not supported:** Plasma 5. The widget is written for the Plasma 6 / Qt 6 APIs and will not load on Plasma 5.
 
@@ -174,6 +194,14 @@ The script:
 
 It looks for `qdbus6`, `qdbus-qt6` or `qdbus` (the name varies by distro) to add the widget to the panel. If none is found, add it yourself (see below). On systems without systemd user services, it falls back to `kquitapp6` / `kstart`, or asks you to log out and back in.
 
+### From a release (no terminal)
+
+1. Download `folder-stack-<version>.plasmoid` from the [Releases page](https://github.com/XxKrustyxX/plasma-stack/releases).
+2. Right-click your panel → **Add or Manage Widgets…** → **Get New** → **Install Widget From Local File…** and choose the file.
+3. Search for **Folder Stack** in the widget list and drag it onto your dock.
+
+This (and the KDE Store, once it's listed there) skips `install.sh`, so nothing checks the dependencies for you. If the widget shows an error instead of a folder, see [Dependencies](#dependencies), especially on Debian/Ubuntu.
+
 ### By hand
 
 ```bash
@@ -181,7 +209,7 @@ kpackagetool6 -t Plasma/Applet -i package     # first install
 kpackagetool6 -t Plasma/Applet -u package     # updates
 ```
 
-Then right-click your panel → **Add or Manage Widgets…** → search for **Stack** → drag it onto the panel. After an update, log out and back in, or run `systemctl --user restart plasma-plasmashell`.
+Then right-click your panel → **Add or Manage Widgets…** → search for **Folder Stack** → drag it onto the panel. After an update, log out and back in, or run `systemctl --user restart plasma-plasmashell`.
 
 ### Update
 
@@ -206,16 +234,16 @@ This removes the widget from every panel and uninstalls it. The spacer that `ins
 
 ## Settings
 
-Right-click the Stack on the dock → **Configure Stack…**
+Right-click the Stack on the dock → **Configure Folder Stack…**
 
 | Setting | Options | Default |
 |---|---|---|
 | Folder | any folder | Downloads |
 | Icon | Automatic, or any icon / picture | Automatic (from the folder) |
-| Open as | Fan / Grid / Automatic | Fan |
+| Open as | Fan / Grid / Automatic (on a dock down the side: always Grid) | Fan |
 | Folders open | In place (grid) / in file manager (fan), *or* Stacked on top | In place |
 | Sort by | Newest first / Name | Newest first |
-| Items in the fan | 3–20 | 10 |
+| Items in the fan | 3–20 (not shown on a side dock) | 10 |
 | Previews | Show previews of files | on |
 | New files | Mark files added since you last looked | on |
 | Downloads | Bounce when a download finishes | on |
@@ -244,13 +272,16 @@ package/                         the widget (installed as a Plasma applet packag
         └── thumbs.py            finds existing previews / makes missing ones
 install.sh                       install / update / add to dock
 uninstall.sh                     remove
+build.sh                         makes dist/folder-stack-<version>.plasmoid for releases and the KDE Store
+docs/screenshots/                the pictures in this README (made with a demo folder)
+docs/kde-store.md                text for the KDE Store page
 ```
 
 ---
 
 ## Known limitations
 
-- **The fan is designed for a bottom dock.** It curves upward and will look wrong on side or top panels. Use Grid there.
+- **No fan on a side dock.** On a dock down the left or right of the screen the stack always opens as the grid, as on macOS.
 - **The panel gap fix relies on Plasma internals.** When you drag files over a Plasma panel, the panel opens a space for a new widget. Stack closes that space when you drop onto it by reaching into the panel's own drop area. If a future Plasma release changes that code, the space may stay open after a drop (it goes away when you move the mouse off the panel). Nothing else is affected.
 - **Download progress has no percentage**, because browsers don't record the final file size anywhere a widget can read.
 - **Microsoft Office files** only get a preview if the file has one saved inside it, which many don't.
@@ -259,6 +290,14 @@ uninstall.sh                     remove
 - **"New" uses the time a file arrived in the folder** (its inode change time), which is what catches copies and moves. The catch: renaming a file or changing its permissions outside the stack also marks it as new.
 - **Open With on several files** starts the app once per file, so some apps open a window for each.
 - **Other Application…** opens KDE's own "Choose Application" window, so it needs KDE's KIO (part of any Plasma desktop).
+
+## Building a release
+
+```bash
+bash build.sh        # → dist/folder-stack-<version>.plasmoid
+```
+
+The version comes from `package/metadata.json`.
 
 ## Ideas / roadmap
 
