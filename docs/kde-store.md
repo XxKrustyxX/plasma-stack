@@ -8,14 +8,15 @@ To publish a new version: build it (`bash build.sh`), then on the store go to yo
 
 | Field | Value |
 |---|---|
-| Category | Plasma 6 Extensions → **Plasma 6 Widgets** |
+| Category | Plasma 6 Extensions → **Plasma 6 Applets** |
 | Title | Folder Stack |
 | Version | 1.16 |
 | License | GPL-2.0-or-later (GPLv2+) |
-| Tags | dock, folder, stack, downloads, macos, files, panel |
+| Tags (5 max) | dock, downloads, folder, macos, stack |
 | Homepage / source | https://github.com/XxKrustyxX/plasma-stack |
 | File to upload | `dist/folder-stack-1.16.plasmoid` (made by `bash build.sh`) |
-| Screenshots | `docs/screenshots/`: fan, grid, right-click-menu, type-to-filter, new-files-and-selection, stacked-folders, new-files-badge |
+| Logo | `docs/logo.png` |
+| Gallery (5 max) | `docs/screenshots/`: fan, grid, right-click-menu, new-files-and-selection, type-to-filter |
 
 ## Summary (one line)
 
