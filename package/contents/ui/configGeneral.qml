@@ -18,6 +18,8 @@ KCM.SimpleKCM {
     property alias cfg_bounceOnDownload: bounceBox.checked
     property alias cfg_showPreviews: previewsBox.checked
     property alias cfg_markNew: newBox.checked
+    property bool cfg_recentFiles
+    property bool cfg_straightLabels
     property string cfg_icon
     // Kept by the widget itself, not shown here
     property string cfg_lastSeen
@@ -31,11 +33,31 @@ KCM.SimpleKCM {
     property var cfg_showPreviewsDefault
     property var cfg_bounceOnDownloadDefault
     property var cfg_markNewDefault
+    property var cfg_recentFilesDefault
+    property var cfg_straightLabelsDefault
     property var cfg_iconDefault
     property var cfg_lastSeenDefault
 
     Kirigami.FormLayout {
+        QQC2.ComboBox {
+            id: showBox
+            Kirigami.FormData.label: i18n("Show:")
+            model: [i18n("A folder"), i18n("Recently used files")]
+            currentIndex: page.cfg_recentFiles ? 1 : 0
+            onActivated: index => page.cfg_recentFiles = index === 1
+        }
+
+        QQC2.Label {
+            visible: page.cfg_recentFiles
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.Wrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: i18n("Files you've opened or saved lately, from any folder, newest first. This is the list KDE keeps; if it stays empty, check that System Settings → Recent Files is remembering files.")
+        }
+
         RowLayout {
+            enabled: !page.cfg_recentFiles
             Kirigami.FormData.label: i18n("Folder:")
             QQC2.TextField {
                 id: folderField
@@ -71,7 +93,7 @@ KCM.SimpleKCM {
             QQC2.Label {
                 visible: page.cfg_icon === ""
                 opacity: 0.7
-                text: i18n("Automatic, from the folder")
+                text: page.cfg_recentFiles ? i18n("Automatic") : i18n("Automatic, from the folder")
             }
 
             QQC2.Menu {
@@ -115,8 +137,18 @@ KCM.SimpleKCM {
             }
         }
 
+        // Tilted text is never quite as sharp as level text
+        QQC2.ComboBox {
+            visible: !page.dockOnSide && viewBox.currentIndex !== 1   // only the fan has them
+            Kirigami.FormData.label: i18n("Fan labels:")
+            model: [i18n("Follow the curve"), i18n("Straight")]
+            currentIndex: page.cfg_straightLabels ? 1 : 0
+            onActivated: index => page.cfg_straightLabels = index === 1
+        }
+
         QQC2.ComboBox {
             id: subfolderBox
+            enabled: !page.cfg_recentFiles   // Recent Files only lists files
             Kirigami.FormData.label: i18n("Folders open:")
             model: [i18n("In place (grid) / in file manager (fan)"), i18n("Stacked on top")]
         }
@@ -151,12 +183,14 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: newBox
+            enabled: !page.cfg_recentFiles
             Kirigami.FormData.label: i18n("New files:")
             text: i18n("Mark files added since you last looked")
         }
 
         QQC2.CheckBox {
             id: bounceBox
+            enabled: !page.cfg_recentFiles
             Kirigami.FormData.label: i18n("Downloads:")
             text: i18n("Bounce when a download finishes")
         }
@@ -176,6 +210,8 @@ KCM.SimpleKCM {
 
     // Same choice the widget makes when no icon is set
     readonly property string automaticIcon: {
+        if (page.cfg_recentFiles)
+            return "document-open-recent";
         const name = folderField.text.replace(/\/$/, "").split("/").pop();
         switch (folderField.text === "" ? "Downloads" : name) {
         case "Downloads": return "folder-download";

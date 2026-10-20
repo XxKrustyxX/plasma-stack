@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17
+- **Recently used files:** a Stack can show the files you've opened or saved lately from any folder, instead of a folder (Settings → Show). Same list as KDE's Recent Files, plus GTK apps' list. Open in Dolphin opens Dolphin's Recent Files view. Thanks to the KDE Store user who asked for it.
+- **Straight fan labels:** a setting to keep the fan's rows level instead of tilted with the curve, for sharper text. Thanks to the KDE Store user who mentioned the text.
+- Fixed: with a tall curved fan, the left end of the top row's label could be cut off.
+
 ## 1.16
 - Follows the dock's edge: the fan hangs down from a top dock; a dock down the left or right always gets the grid (the settings page says so); the grid, stacked folders and bounce follow the edge too.
 - Previews are remade when a file is replaced by a copy with an older date.

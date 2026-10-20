@@ -10,11 +10,11 @@ To publish a new version: build it (`bash build.sh`), then on the store go to yo
 |---|---|
 | Category | Plasma 6 Extensions → **Plasma 6 Applets** |
 | Title | Folder Stack |
-| Version | 1.16 |
+| Version | 1.17 |
 | License | GPL-2.0-or-later (GPLv2+) |
 | Tags (5 max) | dock, downloads, folder, macos, stack |
 | Homepage / source | https://github.com/XxKrustyxX/plasma-stack |
-| File to upload | `dist/folder-stack-1.16.plasmoid` (made by `bash build.sh`) |
+| File to upload | `dist/folder-stack-1.17.plasmoid` (made by `bash build.sh`) |
 | Logo | `docs/logo.png` |
 | Gallery (5 max) | `docs/screenshots/`: fan, grid, right-click-menu, new-files-and-selection, type-to-filter |
 
@@ -24,10 +24,12 @@ A macOS-style Stack for your dock: a folder's newest files fan out or open in a 
 
 ## Description
 
-Folder Stack puts a folder on your dock that works like a Stack in the macOS Dock. Click it and the folder's newest files fan up out of the dock, or open in a grid. Click a file to open it, or drag it anywhere. It shows your Downloads folder by default, and you can point it at any folder or add several Stacks.
+Folder Stack puts a folder on your dock that works like a Stack in the macOS Dock. Click it and the folder's newest files fan up out of the dock, or open in a grid. Click a file to open it, or drag it anywhere. It shows your Downloads folder by default, and you can point it at any folder, show your recently used files from every folder instead, or add several Stacks.
 
 **Features**
 - Fan, Grid, or Automatic (fan when the files fit, grid when there are more)
+- Recently used files: show the files you've opened or saved lately from any folder, instead of a folder
+- Fan labels follow the curve, or stay straight for the sharpest text
 - Previews: pictures, PDF pages, video frames, album art, office documents
 - Right-click a file: Open, Open With, Show in file manager, Rename, Copy Location, Move to Bin
 - Select several files with Ctrl-click / Shift-click and drag or act on them together
@@ -42,15 +44,15 @@ Folder Stack puts a folder on your dock that works like a Stack in the macOS Doc
 **Requirements**
 Plasma 6. Tested on Fedora 44, Plasma 6.7.5, Wayland; it should work on other distros and older Plasma 6 releases but hasn't been tested there.
 On **Debian / Ubuntu / Kubuntu** you may need: `qml6-module-qt-labs-folderlistmodel qml6-module-qtquick-dialogs qml6-module-org-kde-iconthemes`.
-Optional, for previews: `python3`, `poppler-utils` (PDF), `ffmpeg` (video, album art), `libgsf` (office documents).
+Optional, for previews and recent files: `python3`, `poppler-utils` (PDF), `ffmpeg` (video, album art), `libgsf` (office documents).
 Full list and per-distro package names: https://github.com/XxKrustyxX/plasma-stack#dependencies
 
 Bug reports and "it works on my distro" reports are very welcome on GitHub.
 
-## Changelog (for 1.16)
+## Changelog (for 1.17)
 
-- Follows the dock's edge: the fan hangs down from a top dock; side docks always get the grid
-- Previews are remade when a file is replaced by an older copy
-- New name: Folder Stack
+- New: Recently used files. A Stack can show the files you've opened or saved lately from any folder (Settings → Show). Thanks for the idea!
+- New: straight fan labels (Settings → Fan labels) for sharper text. Thanks for the feedback!
+- Fixed: the top row's label could be cut off in a tall curved fan
 
 Full history: https://github.com/XxKrustyxX/plasma-stack/blob/main/CHANGELOG.md

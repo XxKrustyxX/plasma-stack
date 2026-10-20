@@ -6,6 +6,8 @@
   <group name="General">
     <!-- Empty means the Downloads folder -->
     <entry name="folder" type="String"><default></default></entry>
+    <!-- Show the files used most recently in any folder (KDE's Recent Files) instead of the folder -->
+    <entry name="recentFiles" type="Bool"><default>false</default></entry>
     <!-- 0 = newest first, 1 = name -->
     <entry name="sortMode" type="Int"><default>0</default></entry>
     <!-- 0 = fan, 1 = grid, 2 = automatic (fan unless there are more files than fit) -->
@@ -16,6 +18,8 @@
     <entry name="bounceOnDownload" type="Bool"><default>true</default></entry>
     <!-- Pictures, PDF pages, video frames, album art and office documents instead of plain icons -->
     <entry name="showPreviews" type="Bool"><default>true</default></entry>
+    <!-- Fan rows tilt to follow the curve (false) or stay level, which keeps the text sharpest (true) -->
+    <entry name="straightLabels" type="Bool"><default>false</default></entry>
     <entry name="maxItems" type="Int"><default>10</default></entry>
     <!-- Icon on the dock: an icon name or a picture file. Empty = picked from the folder (Downloads, Documents, ...) -->
     <entry name="icon" type="String"><default></default></entry>

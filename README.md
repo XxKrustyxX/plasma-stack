@@ -6,7 +6,7 @@ You can also right-click files (Open With, Rename, Move to Bin, …), select sev
 
 **Get it:** [KDE Store](https://store.kde.org/p/2379769/) · [Releases](https://github.com/XxKrustyxX/plasma-stack/releases) · or see [Install](#install).
 
-It shows your **Downloads** folder by default. You can point it at any folder, and you can add several Stacks, each with its own settings.
+It shows your **Downloads** folder by default. You can point it at any folder, or show your **recently used files** from every folder instead, and you can add several Stacks, each with its own settings.
 
 <p align="center">
   <img src="docs/screenshots/fan.png" alt="The fan: the newest files curve up out of the dock, with previews" width="300">
@@ -24,6 +24,13 @@ It shows your **Downloads** folder by default. You can point it at any folder, a
 - **Grid:** a rounded box showing every file in the folder. It has 3–5 columns, scrolls after 4 rows, and has an **Open in *File Manager*** button.
 - **Automatic:** a fan when the files fit, a grid when there are more.
 - Sort by **newest first** or **name**, and choose how many files the fan shows (3–20).
+- **Fan labels** follow the curve, or stay **straight** for the sharpest text (the rows are still placed along the curve).
+
+**Recent files**
+- Instead of a folder, a Stack can show the **files you've opened or saved lately, from any folder**, newest first. Pick **Show: Recently used files** in the settings.
+- It's the same list as KDE's Recent Files (`recentlyused:/files` in Dolphin, Recent Files in the app launcher), plus the list GNOME and GTK apps keep. Files that have since been deleted are left out, and so are folders.
+- Previews, the right-click menu, selecting, dragging out and type to filter all work as usual. **Open in Dolphin** opens Dolphin's Recent Files view.
+- Files can't be dropped onto it (there's no folder for them to go into), and there are no new-file dots or download alerts.
 
 **Folders inside the stack**
 - **In place (grid):** the folder opens inside the same box. A back button shows the parent folder's name, and <kbd>Backspace</kbd> goes back.
@@ -163,11 +170,11 @@ These come with a normal Plasma 6 desktop. **Debian/Ubuntu/Kubuntu** split QML m
 
 ### Optional
 
-If one of these is missing, nothing breaks: that file type just keeps its normal icon. Pictures, and any preview Dolphin has already made, work without any of them. Without `python3` the right-click menu also has no app list under **Open With** (Other Application… still works).
+If one of these is missing, nothing breaks: that file type just keeps its normal icon. Pictures, and any preview Dolphin has already made, work without any of them. Without `python3` the right-click menu also has no app list under **Open With** (Other Application… still works), and a Stack set to **Recently used files** stays empty.
 
 | What | Used for | Fedora | Arch | openSUSE | Debian / Ubuntu |
 |---|---|---|---|---|---|
-| `python3` | previews of everything except pictures; the app list under **Open With** | `python3` | `python` | `python3` | `python3` |
+| `python3` | previews of everything except pictures; the app list under **Open With**; **Recently used files** | `python3` | `python` | `python3` | `python3` |
 | `pdftoppm` | PDF pages | `poppler-utils` | `poppler` | `poppler-tools` | `poppler-utils` |
 | `ffmpeg` | video frames, album art | `ffmpeg-free` (or `ffmpeg` from RPM Fusion) | `ffmpeg` | `ffmpeg` | `ffmpeg` |
 | `gsf-office-thumbnailer` | LibreOffice / MS Office documents | `libgsf` | `libgsf` | `gsf-office-thumbnailer` | `libgsf-bin` |
@@ -248,11 +255,13 @@ Right-click the Stack on the dock → **Configure Folder Stack…**
 
 | Setting | Options | Default |
 |---|---|---|
-| Folder | any folder | Downloads |
+| Show | A folder / Recently used files | A folder |
+| Folder | any folder (greyed out for Recently used files) | Downloads |
 | Icon | Automatic, or any icon / picture | Automatic (from the folder) |
 | Open as | Fan / Grid / Automatic (on a dock down the side: always Grid) | Fan |
 | Folders open | In place (grid) / in file manager (fan), *or* Stacked on top | In place |
 | Sort by | Newest first / Name | Newest first |
+| Fan labels | Follow the curve / Straight (not shown for Grid or on a side dock) | Follow the curve |
 | Items in the fan | 3–20 (not shown on a side dock) | 10 |
 | Previews | Show previews of files | on |
 | New files | Mark files added since you last looked | on |
@@ -277,8 +286,9 @@ package/                         the widget (installed as a Plasma applet packag
         ├── apps.py              lists the apps that can open a file (for Open With)
         ├── drop.sh              moves/copies files dropped on the stack (via kioclient)
         ├── file-actions.sh      the right-click menu's actions (open with, show, rename, bin, copy)
-        ├── file-manager-name.sh prints the default file manager's name
+        ├── file-manager-name.sh prints the default file manager's name and desktop file
         ├── new-files.sh         lists files added since the stack was last closed
+        ├── recent-files.py      lists recently used files (KDE's activity database + recently-used.xbel)
         └── thumbs.py            finds existing previews / makes missing ones
 install.sh                       install / update / add to dock
 uninstall.sh                     remove
@@ -301,6 +311,8 @@ docs/logo.png                    the KDE Store logo (KDE's Breeze download-folde
 - **"New" uses the time a file arrived in the folder** (its inode change time), which is what catches copies and moves. The catch: renaming a file or changing its permissions outside the stack also marks it as new.
 - **Open With on several files** starts the app once per file, so some apps open a window for each.
 - **Other Application…** opens KDE's own "Choose Application" window, so it needs KDE's KIO (part of any Plasma desktop).
+- **Recently used files** only knows about files an app reported opening or saving. KDE apps, the file dialog and GTK apps do; some others don't. It's empty if *System Settings → Recent Files* is set not to remember files. **Open in *File Manager*** is only shown for file managers that can show KDE's Recent Files (Dolphin, Konqueror, Krusader).
+- **Recently used files** skips files on a network drive that doesn't answer within half a second, so an offline share can't hold the list up.
 
 ## Building a release
 
@@ -319,6 +331,7 @@ The version comes from `package/metadata.json`.
 - Arrow-key navigation in the grid, and Quick Look with <kbd>Space</kbd>
 - Tidy-up: fade old downloads, with a button to move them to the Bin
 - Filters: hide hidden files, or show only some types (for example, pictures only)
+- Recently **added** files: the newest files from several folders you pick, whether or not you've opened them
 
 Suggestions and pull requests are welcome.
 

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Prints the name of the default file manager (e.g. "Dolphin", "COSMIC Files") for the "Open in …" buttons.
-# Prints nothing if it can't tell.
+# Prints the name of the default file manager (e.g. "Dolphin", "COSMIC Files") for the "Open in …" buttons,
+# then its desktop file on a second line. Prints nothing if it can't tell.
 id=$(xdg-mime query default inode/directory 2>/dev/null)
 [ -n "$id" ] || exit 0
 
@@ -10,6 +10,7 @@ for dir in "${dirs[@]}"; do
     if [ -f "$file" ]; then
         # The plain Name= line of the [Desktop Entry] section
         sed -n '/^\[Desktop Entry\]/,/^\[/{s/^Name=//p}' "$file" | head -1
+        echo "$id"
         exit 0
     fi
 done

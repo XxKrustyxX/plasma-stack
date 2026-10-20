@@ -20,7 +20,11 @@ PlasmoidItem {
             return StandardPaths.writableLocation(StandardPaths.DownloadLocation);
         return f.startsWith("file:") ? f : "file://" + f;
     }
-    readonly property string folderName: decodeURIComponent(folderUrl.toString().replace(/\/$/, "").split("/").pop())
+    readonly property string folderName: recentMode ? i18n("Recent Files")
+                                                    : decodeURIComponent(folderUrl.toString().replace(/\/$/, "").split("/").pop())
+    // Show the files used most recently in any folder instead of a folder (see contents/code/recent-files.py)
+    readonly property bool recentMode: Plasmoid.configuration.recentFiles
+    property var recentEntries: []   // kept fresh in the background so the stack opens with them straight away
     readonly property int maxItems: Math.max(1, Plasmoid.configuration.maxItems)
 
     // Which edge the dock is on. The fan climbs away from a bottom dock and hangs down from a top one;
@@ -73,6 +77,8 @@ PlasmoidItem {
     }
 
     function folderIcon() {
+        if (recentMode)
+            return "document-open-recent";
         switch (folderName) {
         case "Downloads": return "folder-download";
         case "Documents": return "folder-documents";
@@ -210,7 +216,7 @@ PlasmoidItem {
     property var newPaths: []
 
     function checkNew() {
-        if (!Plasmoid.configuration.markNew) {
+        if (!Plasmoid.configuration.markNew || recentMode) {
             newPaths = [];
             return;
         }
@@ -244,6 +250,12 @@ PlasmoidItem {
     }
 
     function folderChanged() {
+        if (recentMode) {
+            // The folder setting is kept but not watched
+            activeDownloads = [];
+            newPaths = [];
+            return;
+        }
         const now = downloadsIn(folderModel);
         const names = [];
         for (let i = 0; i < folderModel.count; i++)
@@ -286,8 +298,75 @@ PlasmoidItem {
         }
     }
 
+    // ---- Recent files: the list KDE (and GTK apps) keep of files opened or saved, newest first
+    function refreshRecent() {
+        if (recentMode)
+            runner.connectSource(`python3 -I ${shellQuote(scriptPath("recent-files.py"))} 100 # recent ${Date.now()}`);
+    }
+
+    function recentFound(stdout) {
+        const list = [];
+        for (const line of stdout.split("\n")) {
+            const parts = line.split("\t");
+            if (parts.length < 3)
+                continue;
+            const path = parts.slice(2).join("\t");
+            const name = path.slice(path.lastIndexOf("/") + 1);
+            list.push({
+                name: name,
+                url: "file://" + path.split("/").map(encodeURIComponent).join("/"),
+                path: path,
+                isDir: false,
+                suffix: lastSuffix(name),
+                size: Number(parts[1]),
+                downloading: false
+            });
+        }
+        if (Plasmoid.configuration.sortMode === 1)
+            list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+        recentEntries = list;
+        if (popupOpen && !browsing) {
+            allEntries = list;
+            requestThumbs(list);
+        }
+    }
+
+    onRecentModeChanged: {
+        recentEntries = [];
+        refreshRecent();
+        folderChanged();
+    }
+
+    // Opening a file anywhere doesn't tell us, so look again now and then (and every time the stack opens)
+    Timer {
+        interval: 120000
+        repeat: true
+        running: root.recentMode && !root.popupOpen
+        onTriggered: root.refreshRecent()
+    }
+
+    Connections {
+        target: Plasmoid.configuration
+        function onSortModeChanged() { root.refreshRecent() }
+    }
+
+    // Recent Files can only be shown by file managers that understand KDE's recentlyused:/ address
+    readonly property bool canOpenStackFolder: !recentMode
+        || ["org.kde.dolphin.desktop", "org.kde.konqueror.desktop", "org.kde.krusader.desktop"].indexOf(fileManagerId) >= 0
+
+    // The stack's own place in the file manager: the folder, or Recent Files
+    function openStackFolder(url) {
+        if (recentMode && !browsing) {
+            closeFan();
+            fileAction(`launch ${shellQuote(fileManagerId)} recentlyused:/files/`);
+        } else {
+            openUrl(url);
+        }
+    }
+
     function openFan() {
-        const list = readFolder(folderModel);
+        const list = recentMode ? recentEntries : readFolder(folderModel);
+        refreshRecent();
         lookUpFileManager();
         browsePath = [];
         subEntries = [];
@@ -847,7 +926,7 @@ PlasmoidItem {
             }
         }
         PlasmaExtras.MenuItem {
-            visible: !root.menuMany
+            visible: !root.menuMany && !root.recentMode   // renamed, it would just drop off Recent Files
             text: i18n("&Rename…")
             icon: "edit-rename"
             onClicked: root.startRename(root.menuEntry)
@@ -887,26 +966,34 @@ PlasmoidItem {
     // Name of the default file manager for the "Open in …" buttons (Dolphin, COSMIC Files, …).
     // Looked up again each time the stack opens, in case the default has changed.
     property string fileManagerName: ""
+    property string fileManagerId: ""   // its desktop file, e.g. org.kde.dolphin.desktop
     readonly property string fileManagerLabel: fileManagerName || i18n("File Manager")
 
     function lookUpFileManager() {
         runner.connectSource(`bash ${shellQuote(scriptPath("file-manager-name.sh"))} # file-manager ${Date.now()}`);
     }
 
-    Component.onCompleted: lookUpFileManager()
+    Component.onCompleted: {
+        lookUpFileManager();
+        refreshRecent();
+    }
 
     P5Support.DataSource {
         id: runner
         engine: "executable"
         onNewData: (source, data) => {
-            if (source.indexOf("# new ") >= 0) {
+            if (source.indexOf("# recent ") >= 0) {
+                root.recentFound(data.stdout);
+            } else if (source.indexOf("# new ") >= 0) {
                 root.newFound(data.stdout);
             } else if (source.indexOf("# apps ") >= 0) {
                 root.appsFound(source.slice(source.indexOf("# apps ") + 7), data.stdout);
             } else if (source.indexOf("# rename ") >= 0) {
                 root.renameDone(source.slice(source.indexOf("# rename ") + 9), data.stdout, data["exit code"]);
             } else if (source.indexOf("# file-manager ") >= 0) {
-                root.fileManagerName = data.stdout.trim();
+                const lines = data.stdout.split("\n");
+                root.fileManagerName = lines[0].trim();
+                root.fileManagerId = (lines[1] || "").trim();
             } else if (source.indexOf("# thumbs ") >= 0) {
                 root.thumbsDone(source.slice(source.indexOf("# thumbs ") + 9), data.stdout);
             } else if (source.indexOf("# download-sizes ") >= 0) {
@@ -1201,6 +1288,7 @@ PlasmoidItem {
             id: dropZone
             property bool hovering: false
             anchors.fill: parent
+            enabled: !root.recentMode   // Recent Files isn't a place files can go
             preventStealing: true
             onDragEnter: event => {
                 hovering = event.mimeData.hasUrls;
@@ -1285,6 +1373,7 @@ PlasmoidItem {
                 // (whatever folder is under the pointer, else the one on show)
                 DragDrop.DropArea {
                     anchors.fill: parent
+                    enabled: !root.recentMode
                     onDragEnter: event => {
                         root.dragOverPopup = event.mimeData.hasUrls;
                         root.dragMovedOver(popupBody, event.x, event.y);
@@ -1319,7 +1408,9 @@ PlasmoidItem {
                     readonly property real leftExtent: root.iconSize / 2 + Kirigami.Units.smallSpacing + root.labelWidth
                     readonly property real rightExtent: root.radius * (1 - Math.cos(topAngle)) + root.iconSize + depth * shift
                     width: 2 * Math.max(leftExtent, rightExtent) + Kirigami.Units.gridUnit * 2
-                    height: root.radius * Math.sin(topAngle) + root.rowHeight + Kirigami.Units.gridUnit
+                    // Tilted, the top row's label rises above its icon; room for that too
+                    readonly property real tiltRise: Plasmoid.configuration.straightLabels ? 0 : (root.labelWidth + root.iconSize) * Math.sin(topAngle)
+                    height: root.radius * Math.sin(topAngle) + root.rowHeight + Kirigami.Units.gridUnit + tiltRise
 
                     Repeater {
                         model: canvas.visible ? root.fanLevels.length : 0
@@ -1349,6 +1440,7 @@ PlasmoidItem {
                                 delegate: Item {
                                     id: row
                                     readonly property bool isMore: index === fanLayer.shown.length
+                                    visible: !isMore || root.canOpenStackFolder || fanLayer.level > 0
                                     readonly property var entry: isMore ? null : fanLayer.shown[index]
                                     // Bottom row (newest) sits just above the dock, later rows climb the arc and lean
                                     readonly property real angle: (index + 0.5) * root.rowHeight / root.radius * root.progress * fanLayer.grow
@@ -1371,7 +1463,8 @@ PlasmoidItem {
                                     transform: Rotation {
                                         origin.x: row.width - root.iconSize / 2
                                         origin.y: row.height / 2
-                                        angle: (root.dockOnTop ? -1 : 1) * row.angle * 180 / Math.PI
+                                        // "Straight" keeps every row level (still placed along the curve): tilted text is never quite as sharp
+                                        angle: Plasmoid.configuration.straightLabels ? 0 : (root.dockOnTop ? -1 : 1) * row.angle * 180 / Math.PI
                                     }
 
                                     MouseArea {
@@ -1402,7 +1495,7 @@ PlasmoidItem {
                                             } else if (!fanLayer.current)
                                                 root.backTo(fanLayer.level);
                                             else if (row.isMore)
-                                                root.openUrl(fanLayer.folder);
+                                                root.openStackFolder(fanLayer.folder);
                                             else if (row.entry.downloading)
                                                 return;   // nothing to open until it's finished
                                             else {
@@ -1729,7 +1822,7 @@ PlasmoidItem {
                             anchors.centerIn: parent
                             visible: root.shownEntries.length === 0 && (!root.browsing || browseModel.status === FolderListModel.Ready)
                             opacity: 0.6
-                            text: root.filterText !== "" ? i18n("Nothing called “%1”", root.filterText.trim()) : i18n("This folder is empty")
+                            text: root.filterText !== "" ? i18n("Nothing called “%1”", root.filterText.trim()) : (root.recentMode && !root.browsing ? i18n("No recent files") : i18n("This folder is empty"))
                         }
                     }
 
@@ -1740,7 +1833,8 @@ PlasmoidItem {
                         anchors.horizontalCenter: parent.horizontalCenter
                         icon.name: "system-file-manager"
                         text: i18n("Open in %1", root.fileManagerLabel)
-                        onClicked: root.openUrl(root.gridFolderUrl)
+                        visible: root.canOpenStackFolder || root.browsing
+                        onClicked: root.openStackFolder(root.gridFolderUrl)
                     }
                 }
             }
