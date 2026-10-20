@@ -296,7 +296,7 @@ docs/logo.png                    the KDE Store logo (KDE's Breeze download-folde
 - **The panel gap fix relies on Plasma internals.** When you drag files over a Plasma panel, the panel opens a space for a new widget. Stack closes that space when you drop onto it by reaching into the panel's own drop area. If a future Plasma release changes that code, the space may stay open after a drop (it goes away when you move the mouse off the panel). Nothing else is affected.
 - **Download progress has no percentage**, because browsers don't record the final file size anywhere a widget can read.
 - **Microsoft Office files** only get a preview if the file has one saved inside it, which many don't.
-- **Dropping into subfolders is the newest feature (1.15)** and has had the least real-world testing. It relies on the stack, opened in the middle of a drag, receiving that drag from the other app.
+- **Dropping into subfolders** relies on the stack, opened in the middle of a drag, receiving that drag from the other app. It works with real drags from Dolphin on the tested setup (Plasma 6.7, Wayland); other apps and compositors haven't been tried.
 - **Copy Location** uses Plasma's clipboard service (Klipper), because a panel widget can't always set the clipboard itself on Wayland. Without Klipper it falls back to `wl-copy` or `xclip` if installed.
 - **"New" uses the time a file arrived in the folder** (its inode change time), which is what catches copies and moves. The catch: renaming a file or changing its permissions outside the stack also marks it as new.
 - **Open With on several files** starts the app once per file, so some apps open a window for each.
